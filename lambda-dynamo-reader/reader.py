@@ -69,10 +69,10 @@ def lambda_handler(event, context):
 
     # read post
     print("[INFO] Reading post", end='')
-    mysql_conn = pymysql.connect('antipode-dporto-cluster-1.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com',
+    mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com',
         port = 3306,
-        user='admin',
-        password='adminadmin',
+        user='antipode',
+        password='antipode',
         connect_timeout=5,
         db='antipode',
         autocommit=True

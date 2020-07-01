@@ -4,6 +4,7 @@ import boto3
 import pymysql
 import pymysql.cursors
 from pprint import pprint
+import time
 
 #---------------
 # AWS SAM Deployment details
@@ -13,24 +14,31 @@ from pprint import pprint
 # Stack name: antipode-lambda-sns-writer
 #---------------
 
-def lambda_handler(event, context):
-  # write post
-  mysql_conn = pymysql.connect('antipode-dporto-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+try:
+  mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
       port = 3306,
-      user='admin',
-      password='adminadmin',
-      connect_timeout=5,
+      user='antipode',
+      password='antipode',
+      connect_timeout=60,
       db='antipode',
       autocommit=True
     )
+except pymysql.Error as e:
+  print(f"[ERROR] MySQL exception: {e}")
+  sys.exit()
+
+
+def lambda_handler(event, context):
+  # write post
   with mysql_conn.cursor() as cursor:
     # write with 0:AAAA -> blob of 1Mb
+    # 1MB is the maximum packet size!!
     sql = "INSERT INTO `keyvalue` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
-    cursor.execute(sql, (int(event['i']), event['key'], os.urandom(10000000)))
-    mysql_conn.commit()
+    cursor.execute(sql, (int(event['i']), event['key'], os.urandom(1000000)))
 
+  mysql_conn.commit()
 
-  # write notification
+  # write notification to SNS topic
   client = boto3.client('sns')
   response = client.publish(
       TargetArn='arn:aws:sns:eu-central-1:641424397462:antipode',
@@ -38,12 +46,7 @@ def lambda_handler(event, context):
     )
 
   # returns OK with the k,v written
-  reply = {
-    'role': 'writer',
-    'key': event['i'],
-    'value': event['key'],
-  }
   return {
     'statusCode': 200,
-    'body': json.dumps(reply, default=str)
+    'body': json.dumps(event, default=str)
   }

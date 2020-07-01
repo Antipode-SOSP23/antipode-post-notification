@@ -15,10 +15,10 @@ from pprint import pprint
 
 def lambda_handler(event, context):
   # write post
-  mysql_conn = pymysql.connect('antipode-dporto-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+  mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
       port = 3306,
-      user='admin',
-      password='adminadmin',
+      user='antipode',
+      password='antipode',
       connect_timeout=5,
       db='antipode',
       autocommit=True
