@@ -32,6 +32,7 @@ RUN set -ex ;\
             pymysql \
             pprint \
             boto3 \
+            psutil \
             ;\
     # make sure nothing is on pip cache folder
     rm -rf ~/.cache/pip/

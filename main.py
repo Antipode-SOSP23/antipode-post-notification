@@ -10,8 +10,12 @@ from boto3.dynamodb.types import TypeDeserializer
 from datetime import datetime
 import pandas as pd
 import multiprocessing as mp
+from multiprocessing import Pool
+import time
+import psutil
 
-ITER = 10000
+# ITER = 1000
+ITER = 10
 
 #############################
 # CLEANERS
@@ -20,17 +24,27 @@ def _clean_mysql():
   # clean table before running lambda
   print("[INFO] Truncating MySQL table... ", end='')
   table = 'keyvalue'
-  mysql_conn = pymysql.connect('antipode-dporto-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+  mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
       port = 3306,
-      user='admin',
-      password='adminadmin',
-      connect_timeout=5,
+      user='antipode',
+      password='antipode',
+      connect_timeout=60,
       db='antipode',
       autocommit=True
     )
   with mysql_conn.cursor() as cursor:
-    sql = f"DROP TABLE `{table}`"
-    cursor.execute(sql)
+    try:
+      sql = f"DROP DATABASE `antipode`"
+      cursor.execute(sql)
+    except pymysql.err.InternalError as e:
+      print(f"[WARN] MySQL error: {e}")
+
+    try:
+      sql = f"DROP TABLE `{table}`"
+      cursor.execute(sql)
+    except pymysql.err.InternalError as e:
+      print(f"[WARN] MySQL error: {e}")
+
     sql = f"CREATE TABLE `{table}` (k BIGINT, v VARCHAR(8), b LONGBLOB)"
     cursor.execute(sql)
     mysql_conn.commit()
@@ -65,6 +79,13 @@ def _clean_dynamo():
     # assert(table_describe['Table']['ItemCount'] == 0)
   print("Done!")
 
+def _clean_sqs():
+  print("[INFO] Purging SQS queue... ", end='')
+  sqs = boto3.resource('sqs', region_name='us-east-1')
+  queue = sqs.get_queue_by_name(QueueName='antipode-eval')
+  queue.purge()
+  print("Done!")
+
 #############################
 # DYNAMO
 #
@@ -75,12 +96,17 @@ def _lambda_reader_invoke(evaluation,i):
   }
 
   # call reader
-  reader_client = boto3.client('lambda', region_name='us-east-1')
-  response = reader_client.invoke(
-    FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-reader-antipodelambdareader-1TUBTXAK5Z3H2',
-    InvocationType='RequestResponse',
-    Payload=json.dumps(payload),
-  )
+  while True:
+    try:
+      reader_client = boto3.client('lambda', region_name='us-east-1')
+      response = reader_client.invoke(
+        FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-reader-antipodelambdareader-1TUBTXAK5Z3H2',
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload),
+      )
+      break
+    except Exception as e:
+      pass
 
   # call writer
   # writer_client = boto3.client('lambda', region_name='eu-central-1')
@@ -161,47 +187,92 @@ def _lambda_sns_invoke(i):
     "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
   }
 
-  writer_client = boto3.client('lambda', region_name='eu-central-1')
-  response = writer_client.invoke(
-    FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-sns-writer-antipodelambdasnswriter-FWBNEBJ1XTTL',
-    InvocationType='Event',
-    Payload=json.dumps(payload),
-  )
+  print(f"\tRunning {i}...", end='')
+  # call reader
+  while True:
+    try:
+      writer_client = boto3.client('lambda', region_name='eu-central-1')
+      response = writer_client.invoke(
+        FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-sns-writer-antipodelambdasnswriter-KF1XUHS9ULYR',
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload),
+      )
+      code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+      if code == 200:
+        print(f"Done!")
+        break
+
+      sys.stdout.flush()
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      pass
 
 def start_sns():
   _clean_mysql()
   _clean_dynamo()
+  _clean_sqs()
 
-  print("[INFO] Running... ", end='')
+  print("[INFO] Running... ")
   for i in range(ITER):
     _lambda_sns_invoke(i)
-  print("Done!")
-
-  print("[INFO] Reading eval to dynamo... ", end='')
-  # evaluation = _gather_sns()
-  print("Done!")
+  # pool = mp.Pool(processes=psutil.cpu_count())
+  # pool.map(_lambda_sns_invoke, range(ITER))
+  print("[INFO] Done!")
 
 def _gather_sns():
-  print("[INFO] Reading eval entries from Dynamo ...", end='')
+  print("[INFO] Reading eval entries from Dynamo ...")
   table = boto3.resource('dynamodb').Table('antipode-eval')
   last_evaluated_key = None
   results = {}
+  prev_len = 0
   while len(results) < ITER:
+    print(f"\tCurrent results: {len(results)}")
+    prev_len = len(results)
     response = table.scan()
     with table.batch_writer() as batch:
       for item in response.get('Items', []):
+        if item['ts_read_post_spent'] is None or item['read_post_retries'] is None:
+          ITER -= 1
+          next
         # example entry:
         #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
         results[int(item['i'])] = {
           'read_post_retries': int(item['read_post_retries']),
           'ts_read_post_spent': int(item['ts_read_post_spent']),
         }
+    if prev_len == len(results):
+      time.sleep(5)
 
   print("Done!")
 
   print("[INFO] Parsing evaluation ...", end='')
   df = pd.DataFrame(results.values())
+  print("[INFO] Done!")
+
+  print(df.describe())
+
+def _gather_sns_with_sqs():
+  print("[INFO] Gater info from Dynamo through SQS...")
+  sqs = boto3.resource('sqs', region_name='us-east-1')
+  queue = sqs.get_queue_by_name(QueueName='antipode-eval')
+
+  results = {}
+  while len(results) < ITER:
+    for message in queue.receive_messages(MaxNumberOfMessages=10):
+      # example entry:
+      #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
+      item = json.loads(json.loads(message.body)['responsePayload']['body'])
+      print(item)
+      results[int(item['i'])] = {
+        'read_post_retries': int(item['read_post_retries']),
+        'ts_read_post_spent': int(item['ts_read_post_spent']),
+      }
+      message.delete()
   print("Done!")
+
+  print("[INFO] Parsing evaluation ...", end='')
+  df = pd.DataFrame(results.values())
+  print("[INFO] Done!")
 
   print(df.describe())
 
@@ -209,4 +280,18 @@ def _gather_sns():
 # MAIN
 #
 if __name__ == '__main__':
-  start_sns()
+  # start_sns()
+  # _gather_sns_with_sqs()
+
+  mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+      port = 3306,
+      user='antipode',
+      password='antipode',
+      connect_timeout=60,
+      db='antipode',
+      autocommit=True
+    )
+  with mysql_conn.cursor() as cursor:
+    sql = 'SHOW VARIABLES LIKE "max_used_connections";'
+    cursor.execute(sql)
+    pprint(cursor.fetchall())
