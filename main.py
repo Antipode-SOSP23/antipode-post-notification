@@ -14,8 +14,9 @@ from multiprocessing import Pool
 import time
 import psutil
 
-# ITER = 1000
-ITER = 10
+MAX_CONNECTIONS = 1000
+ITER = 10000
+# ITER = 10
 
 #############################
 # CLEANERS
@@ -23,24 +24,26 @@ ITER = 10
 def _clean_mysql():
   # clean table before running lambda
   print("[INFO] Truncating MySQL table... ", end='')
+  db = 'antipode'
   table = 'keyvalue'
   mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
       port = 3306,
       user='antipode',
       password='antipode',
       connect_timeout=60,
-      db='antipode',
       autocommit=True
     )
   with mysql_conn.cursor() as cursor:
     try:
-      sql = f"DROP DATABASE `antipode`"
+      sql = f"DROP DATABASE `{db}`"
       cursor.execute(sql)
     except pymysql.err.InternalError as e:
       print(f"[WARN] MySQL error: {e}")
 
     try:
-      sql = f"DROP TABLE `{table}`"
+      sql = f"CREATE DATABASE `{db}`"
+      cursor.execute(sql)
+      sql = f"USE `{db}`"
       cursor.execute(sql)
     except pymysql.err.InternalError as e:
       print(f"[WARN] MySQL error: {e}")
@@ -213,11 +216,19 @@ def start_sns():
   _clean_sqs()
 
   print("[INFO] Running... ")
-  for i in range(ITER):
-    _lambda_sns_invoke(i)
-  # pool = mp.Pool(processes=psutil.cpu_count())
-  # pool.map(_lambda_sns_invoke, range(ITER))
+  for r in range(max(1, int(ITER/MAX_CONNECTIONS))):
+    print(f"\t--- Round #{r} --")
+    # for i in range(ITER):
+    #   _lambda_sns_invoke(i)
+
+    pool = mp.Pool(processes=psutil.cpu_count())
+    pool.map(_lambda_sns_invoke, range(MAX_CONNECTIONS*r, MAX_CONNECTIONS*r + MAX_CONNECTIONS))
+    pool.close()
+    pool.join()
+
   print("[INFO] Done!")
+
+  _gather_sns_with_sqs()
 
 def _gather_sns():
   print("[INFO] Reading eval entries from Dynamo ...")
@@ -252,21 +263,41 @@ def _gather_sns():
   print(df.describe())
 
 def _gather_sns_with_sqs():
-  print("[INFO] Gater info from Dynamo through SQS...")
+  print("[INFO] Waiting for all messages to arrive at eval queue ...")
+  sqs = boto3.client('sqs', region_name='us-east-1')
+  while True:
+    reply = sqs.get_queue_attributes(
+        QueueUrl='https://sqs.us-east-1.amazonaws.com/641424397462/antipode-eval',
+        AttributeNames=[ 'ApproximateNumberOfMessages' ]
+      )
+    num_messages = int(reply['Attributes']['ApproximateNumberOfMessages'])
+    print(f"\tPending {num_messages}/{ITER}")
+    if num_messages >= ITER:
+      break
+    else:
+      time.sleep((ITER-num_messages)/1000.0)
+  print("[INFO] Done!")
+
+  print("[INFO] Gater info through SQS...")
   sqs = boto3.resource('sqs', region_name='us-east-1')
   queue = sqs.get_queue_by_name(QueueName='antipode-eval')
 
   results = {}
   while len(results) < ITER:
-    for message in queue.receive_messages(MaxNumberOfMessages=10):
+    messages = queue.receive_messages(MaxNumberOfMessages=10)
+    print(f"\tRead {len(messages)} messages:")
+    if len(messages) == 0:
+      sleep(10)
+    for message in messages:
       # example entry:
       #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
       item = json.loads(json.loads(message.body)['responsePayload']['body'])
-      print(item)
       results[int(item['i'])] = {
         'read_post_retries': int(item['read_post_retries']),
         'ts_read_post_spent': int(item['ts_read_post_spent']),
       }
+
+      print(f"\t\tReading #{item['i']} - {len(results)}/{ITER} ...")
       message.delete()
   print("Done!")
 
@@ -280,18 +311,56 @@ def _gather_sns_with_sqs():
 # MAIN
 #
 if __name__ == '__main__':
-  # start_sns()
-  # _gather_sns_with_sqs()
+  start_sns()
 
-  mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
-      port = 3306,
-      user='antipode',
-      password='antipode',
-      connect_timeout=60,
-      db='antipode',
-      autocommit=True
-    )
-  with mysql_conn.cursor() as cursor:
-    sql = 'SHOW VARIABLES LIKE "max_used_connections";'
-    cursor.execute(sql)
-    pprint(cursor.fetchall())
+# without fetch time - fetch B
+# count         2000.00000         2000.000000
+# mean             0.00250       246756.477500
+# std              0.04995       149623.961279
+# min              0.00000          444.000000
+# 25%              0.00000       126371.750000
+# 50%              0.00000       247845.000000
+# 75%              0.00000       376600.000000
+# max              1.00000       484361.000000
+
+# with fetch time - fetch K
+# count        1000.000000         1000.000000
+# mean           40.452000          163.517000
+# std            42.621101          173.906674
+# min             0.000000            0.000000
+# 25%             0.000000            0.000000
+# 50%            29.000000          108.500000
+# 75%            69.250000          285.250000
+# max           201.000000          815.000000
+
+# without fetch time - fetch K
+# count        1000.000000         1000.000000
+# mean           57.581000          242.200000
+# std            66.927833          296.663795
+# min             0.000000            0.000000
+# 25%            15.000000           61.000000
+# 50%            42.000000          169.000000
+# 75%            74.000000          298.500000
+# max           416.000000         1705.000000
+
+# swith while with with on mysql conn
+# count        1000.000000         1000.000000
+# mean           34.594000          135.808000
+# std            37.227047          146.169301
+# min             0.000000            0.000000
+# 25%             0.000000            4.000000
+# 50%            25.000000           96.000000
+# 75%            55.000000          214.000000
+# max           185.000000          743.000000
+
+
+# 10k
+#        read_post_retries  ts_read_post_spent
+# count        10000.00000        10000.000000
+# mean            27.59600          201.007900
+# std             31.17438          195.334813
+# min              0.00000            0.000000
+# 25%              2.00000           23.000000
+# 50%             17.00000          162.000000
+# 75%             43.00000          316.000000
+# max            357.00000         1592.000000
