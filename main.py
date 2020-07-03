@@ -193,7 +193,7 @@ def _gather_dynamo(data):
 #############################
 # SQL ONLY
 #
-def _lambda_dynamo_only_invoke(evaluation,i):
+def _lambda_sql_only_invoke(evaluation,i):
   event_payload = json.dumps({
     "i": i,
     "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
@@ -205,7 +205,7 @@ def _lambda_dynamo_only_invoke(evaluation,i):
     try:
       reader_client = boto3.client('lambda', region_name='us-east-1')
       response = reader_client.invoke(
-          FunctionName='',
+          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-sql-only-antipodelambdasqlonlyrea-1NIXL0J15WX62',
           InvocationType='RequestResponse',
           Payload=event_payload,
         )
@@ -231,7 +231,7 @@ def start_sql_only():
   evaluation = manager.dict()
   pool = mp.Pool(psutil.cpu_count())
   for i in range(ITER):
-    pool.apply_async(_lambda_dynamo_only_invoke, args=(evaluation, i))
+    pool.apply_async(_lambda_sql_only_invoke, args=(evaluation, i))
   pool.close()
   pool.join()
   print("[INFO] Done!")
@@ -416,7 +416,7 @@ def _gather_sns_with_sqs():
 # MAIN
 #
 if __name__ == '__main__':
-  start_dynamo_only()
+  start_sql_only()
 
 # without fetch time - fetch B
 # count         2000.00000         2000.000000
@@ -469,3 +469,14 @@ if __name__ == '__main__':
 # 50%             17.00000          162.000000
 # 75%             43.00000          316.000000
 # max            357.00000         1592.000000
+
+# 10k - dynamo only
+#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
+# count       10000.000000       10000.000000       10000.000000       10000.000000     10000.000000     10000.000000
+# mean           11.001300          14.652800           2.237202           0.828056         0.572797         0.791970
+# std             7.297727          11.973136           0.460329           0.078166         0.310182         0.517043
+# min             0.000000           0.000000           1.119925           0.645902         0.049530         0.089410
+# 25%             5.000000           4.000000           1.900966           0.794139         0.300582         0.340516
+# 50%            11.000000          13.000000           2.192128           0.815482         0.577556         0.739543
+# 75%            17.000000          23.000000           2.555330           0.841857         0.837704         1.142574
+# max            30.000000          89.000000           5.798233           2.667064         1.438102         4.111954

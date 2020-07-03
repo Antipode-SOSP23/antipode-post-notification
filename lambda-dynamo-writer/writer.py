@@ -9,8 +9,8 @@ from pprint import pprint
 # AWS SAM Deployment details
 #
 # Region: eu-central-1 (Frankfurt)
-# S3 Bucket: antipode-lambda-eu-sns-writer
-# Cloud Formation Stack name: antipode-lambda-sns-writer
+# S3 Bucket: antipode-lambda-eu
+# Cloud Formation Stack name: antipode-lambda-dynamo-writer
 #---------------
 
 def lambda_handler(event, context):

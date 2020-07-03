@@ -1,0 +1,3 @@
+pprint
+boto3
+pymysql
