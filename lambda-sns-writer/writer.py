@@ -10,8 +10,8 @@ import time
 # AWS SAM Deployment details
 #
 # Region: eu-central-1 (Frankfurt)
-# S3 Bucket: antipode-lambda-sns-writer
-# Stack name: antipode-lambda-sns-writer
+# S3 Bucket: antipode-lambda-eu
+# Stack name: antipode-lambda-sns-reader
 #---------------
 
 try:

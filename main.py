@@ -25,7 +25,6 @@ def _clean_mysql():
   # clean table before running lambda
   print("[INFO] Truncating MySQL table... ", end='')
   db = 'antipode'
-  table = 'keyvalue'
   mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
       port = 3306,
       user='antipode',
@@ -48,12 +47,22 @@ def _clean_mysql():
     except pymysql.err.InternalError as e:
       print(f"[WARN] MySQL error: {e}")
 
-    sql = f"CREATE TABLE `{table}` (k BIGINT, v VARCHAR(8), b LONGBLOB)"
+    post_table = 'blobs'
+    sql = f"CREATE TABLE `{post_table}` (k BIGINT, v VARCHAR(8), b LONGBLOB)"
     cursor.execute(sql)
     mysql_conn.commit()
-    sql = f"SELECT COUNT(*) FROM `{table}`"
+    sql = f"SELECT COUNT(*) FROM `{post_table}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
+
+    notf_table = 'keyvalue'
+    sql = f"CREATE TABLE `{notf_table}` (k BIGINT, v VARCHAR(8))"
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{notf_table}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
   print("Done!")
 
 def _clean_dynamo():
@@ -180,6 +189,102 @@ def _gather_dynamo(data):
   print("Done!")
 
   print(df.describe())
+
+#############################
+# SQL ONLY
+#
+def _lambda_dynamo_only_invoke(evaluation,i):
+  event_payload = json.dumps({
+    "i": i,
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  })
+
+  # call reader
+  print(f"\tRunning {i}...", end='')
+  while True:
+    try:
+      reader_client = boto3.client('lambda', region_name='us-east-1')
+      response = reader_client.invoke(
+          FunctionName='',
+          InvocationType='RequestResponse',
+          Payload=event_payload,
+        )
+      payload = json.loads(response['Payload'].read())
+      code = int(payload.get('statusCode', 500))
+      if code == 200:
+        evaluation[i] = json.loads(payload['body'])['evaluation']
+        print(f"Done!")
+        break
+      else:
+        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      pass
+    finally:
+      sys.stdout.flush()
+
+def start_sql_only():
+  _clean_mysql()
+
+  print("[INFO] Running... ")
+  manager = mp.Manager()
+  evaluation = manager.dict()
+  pool = mp.Pool(psutil.cpu_count())
+  for i in range(ITER):
+    pool.apply_async(_lambda_dynamo_only_invoke, args=(evaluation, i))
+  pool.close()
+  pool.join()
+  print("[INFO] Done!")
+
+  _gather_dynamo(dict(evaluation).values())
+
+#############################
+# MYSQL ONLY
+#
+def _lambda_mysql_only_invoke(evaluation,i):
+  payload = {
+    "i": i,
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  }
+
+  # call reader
+  print(f"\tRunning {i}...", end='')
+  while True:
+    try:
+      reader_client = boto3.client('lambda', region_name='us-east-1')
+      response = reader_client.invoke(
+          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-dynamo-on-antipodelambdadynamoonly-150FAKU3TJ88H',
+          InvocationType='RequestResponse',
+          Payload=json.dumps(payload),
+        )
+      payload = json.loads(response['Payload'].read())
+      code = int(payload.get('statusCode', 500))
+      if code == 200:
+        evaluation[i] = json.loads(payload['body'])['evaluation']
+        print(f"Done!")
+        break
+      else:
+        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      pass
+    finally:
+      sys.stdout.flush()
+
+def start_mysql_only():
+  _clean_dynamo()
+
+  print("[INFO] Running... ")
+  manager = mp.Manager()
+  evaluation = manager.dict()
+  pool = mp.Pool(psutil.cpu_count())
+  for i in range(ITER):
+    pool.apply_async(_lambda_dynamo_only_invoke, args=(evaluation, i))
+  pool.close()
+  pool.join()
+  print("[INFO] Done!")
+
+  _gather_dynamo(dict(evaluation).values())
 
 #############################
 # SNS
@@ -311,7 +416,7 @@ def _gather_sns_with_sqs():
 # MAIN
 #
 if __name__ == '__main__':
-  start_sns()
+  start_dynamo_only()
 
 # without fetch time - fetch B
 # count         2000.00000         2000.000000
@@ -354,7 +459,7 @@ if __name__ == '__main__':
 # max           185.000000          743.000000
 
 
-# 10k
+# 10k - SNS
 #        read_post_retries  ts_read_post_spent
 # count        10000.00000        10000.000000
 # mean            27.59600          201.007900

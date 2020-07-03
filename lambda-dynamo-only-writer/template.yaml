@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: AWS Lambda for Antipode Motivation example - Writer version
+Resources:
+  antipodelambdadynamoonlywriter:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: writer.lambda_handler
+      Runtime: python3.7
+      CodeUri: .
+      Description: ''
+      MemorySize: 128
+      Timeout: 900
+      Role: 'arn:aws:iam::641424397462:role/antipode-lambda-global'

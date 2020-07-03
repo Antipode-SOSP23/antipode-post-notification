@@ -12,7 +12,7 @@ import time
 # AWS SAM Deployment details
 #
 # Region: us-east-1 (N. Virginia)
-# S3 Bucket: antipode-lambda-sns-reader
+# S3 Bucket: antipode-lambda-us
 # Stack name: antipode-lambda-sns-reader
 #---------------
 
