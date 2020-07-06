@@ -10,7 +10,10 @@ from pprint import pprint
 #
 # Region: eu-central-1 (Frankfurt)
 # S3 Bucket: antipode-lambda-eu
-# Cloud Formation Stack name: antipode-lambda-dynamo-writer
+# Stack name: antipode-lambda-dyplussql-writer
+#
+# Payload Example:
+# { "i": "1", "key": "AABB11" }
 #---------------
 
 def lambda_handler(event, context):
@@ -25,7 +28,7 @@ def lambda_handler(event, context):
     )
   with mysql_conn.cursor() as cursor:
     # write with 0:AAAA -> blob of 1Mb
-    sql = "INSERT INTO `keyvalue` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
+    sql = "INSERT INTO `blobs` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
     cursor.execute(sql, (event['i'], event['key'], os.urandom(1000000)))
     mysql_conn.commit()
 

@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
-Description: AWS Lambda for Antipode Motivation example - Writer version
+Description: AWS Lambda for Antipode Motivation example - Dynamo Plus SQL Reader version
 Resources:
-  antipodelambdawriter:
+  antipodelambdadyplussqlreader:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: writer.lambda_handler
+      Handler: reader.lambda_handler
       Runtime: python3.7
       CodeUri: .
       Description: ''

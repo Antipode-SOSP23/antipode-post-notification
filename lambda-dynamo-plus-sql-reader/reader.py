@@ -12,7 +12,10 @@ from datetime import datetime
 #
 # Region: us-east-1 (N. Virginia)
 # S3 Bucket: antipode-lambda-us
-# Stack name: antipode-lambda-reader
+# Stack name: antipode-lambda-dyplussql-reader
+#
+# Payload Example:
+# { "i": "1", "key": "AABB11" }
 #---------------
 
 def lambda_handler(event, context):
@@ -36,7 +39,7 @@ def lambda_handler(event, context):
 
   writer_client = boto3.client('lambda', region_name='eu-central-1')
   response = writer_client.invoke(
-    FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-writer-antipodelambdawriter-1HU9P3YKANACH',
+    FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-dyplussql-antipodelambdadyplussqlw-1A6NPHLBVNMWD',
     InvocationType='RequestResponse',
     Payload=json.dumps(event),
   )
@@ -80,7 +83,7 @@ def lambda_handler(event, context):
     with mysql_conn.cursor() as cursor:
       while True:
         print('', end ='...')
-        sql = "SELECT `b` FROM `keyvalue` WHERE `v`=%s"
+        sql = "SELECT `b` FROM `blobs` WHERE `v`=%s"
         cursor.execute(sql, (event['key'],))
         result = cursor.fetchone()
 

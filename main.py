@@ -14,8 +14,8 @@ from multiprocessing import Pool
 import time
 import psutil
 
-MAX_CONNECTIONS = 1000
-ITER = 10000
+MAX_CONNECTIONS = 500
+ITER = 5000
 # ITER = 10
 
 #############################
@@ -67,7 +67,7 @@ def _clean_mysql():
 
 def _clean_dynamo():
   print("[INFO] Truncating Dynamo table... ", end='')
-  table_names = ['keyvalue', 'antipode-eval']
+  table_names = ['keyvalue', 'blobs', 'antipode-eval']
 
   for table_name in table_names:
     table = boto3.resource('dynamodb').Table(table_name)
@@ -99,65 +99,9 @@ def _clean_sqs():
   print("Done!")
 
 #############################
-# DYNAMO
+# GATHERERS
 #
-def _lambda_reader_invoke(evaluation,i):
-  payload = {
-    "i": i,
-    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
-  }
-
-  # call reader
-  while True:
-    try:
-      reader_client = boto3.client('lambda', region_name='us-east-1')
-      response = reader_client.invoke(
-        FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-reader-antipodelambdareader-1TUBTXAK5Z3H2',
-        InvocationType='RequestResponse',
-        Payload=json.dumps(payload),
-      )
-      break
-    except Exception as e:
-      pass
-
-  # call writer
-  # writer_client = boto3.client('lambda', region_name='eu-central-1')
-  # response = client.invoke(
-  #   FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-writer-antipodelambdawriter-1HU9P3YKANACH',
-  #   InvocationType='RequestResponse',
-  #   Payload=json.dumps(payload),
-  # )
-
-  payload = json.loads(response['Payload'].read())
-  body = json.loads(payload.get('body',"{}"))
-  if not body:
-    print("[ERROR] Empty reply!: ")
-    pprint(payload)
-    exit()
-  else:
-    evaluation[i] = body['evaluation']
-    print(str(i), end='...')
-
-def start_dynamo():
-  _clean_dynamo()
-  _clean_mysql()
-
-  print("[INFO] Running...", end='')
-  manager = mp.Manager()
-  evaluation = manager.dict()
-  # created pool running maximum 4 tasks
-  pool = mp.Pool(4)
-  for i in range(ITER):
-    pool.apply_async(_lambda_reader_invoke, args=(evaluation, i))
-  pool.close()
-  pool.join()
-  _gather_dynamo(dict(evaluation).values())
-  print("[INFO] Done!")
-
 def _gather_dynamo(data):
-  # print("[INFO] Raw evaluation data:")
-  # pprint(data)
-
   print("[INFO] Parsing evaluation ...", end='')
   new_data = []
   for d in data:
@@ -189,151 +133,6 @@ def _gather_dynamo(data):
   print("Done!")
 
   print(df.describe())
-
-#############################
-# SQL ONLY
-#
-def _lambda_sql_only_invoke(evaluation,i):
-  event_payload = json.dumps({
-    "i": i,
-    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
-  })
-
-  # call reader
-  print(f"\tRunning {i}...", end='')
-  while True:
-    try:
-      reader_client = boto3.client('lambda', region_name='us-east-1')
-      response = reader_client.invoke(
-          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-sql-only-antipodelambdasqlonlyrea-1NIXL0J15WX62',
-          InvocationType='RequestResponse',
-          Payload=event_payload,
-        )
-      payload = json.loads(response['Payload'].read())
-      code = int(payload.get('statusCode', 500))
-      if code == 200:
-        evaluation[i] = json.loads(payload['body'])['evaluation']
-        print(f"Done!")
-        break
-      else:
-        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
-    except Exception as e:
-      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
-      pass
-    finally:
-      sys.stdout.flush()
-
-def start_sql_only():
-  _clean_mysql()
-
-  print("[INFO] Running... ")
-  manager = mp.Manager()
-  evaluation = manager.dict()
-  pool = mp.Pool(psutil.cpu_count())
-  for i in range(ITER):
-    pool.apply_async(_lambda_sql_only_invoke, args=(evaluation, i))
-  pool.close()
-  pool.join()
-  print("[INFO] Done!")
-
-  _gather_dynamo(dict(evaluation).values())
-
-#############################
-# MYSQL ONLY
-#
-def _lambda_mysql_only_invoke(evaluation,i):
-  payload = {
-    "i": i,
-    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
-  }
-
-  # call reader
-  print(f"\tRunning {i}...", end='')
-  while True:
-    try:
-      reader_client = boto3.client('lambda', region_name='us-east-1')
-      response = reader_client.invoke(
-          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-dynamo-on-antipodelambdadynamoonly-150FAKU3TJ88H',
-          InvocationType='RequestResponse',
-          Payload=json.dumps(payload),
-        )
-      payload = json.loads(response['Payload'].read())
-      code = int(payload.get('statusCode', 500))
-      if code == 200:
-        evaluation[i] = json.loads(payload['body'])['evaluation']
-        print(f"Done!")
-        break
-      else:
-        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
-    except Exception as e:
-      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
-      pass
-    finally:
-      sys.stdout.flush()
-
-def start_mysql_only():
-  _clean_dynamo()
-
-  print("[INFO] Running... ")
-  manager = mp.Manager()
-  evaluation = manager.dict()
-  pool = mp.Pool(psutil.cpu_count())
-  for i in range(ITER):
-    pool.apply_async(_lambda_dynamo_only_invoke, args=(evaluation, i))
-  pool.close()
-  pool.join()
-  print("[INFO] Done!")
-
-  _gather_dynamo(dict(evaluation).values())
-
-#############################
-# SNS
-#
-def _lambda_sns_invoke(i):
-  payload = {
-    "i": i,
-    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
-  }
-
-  print(f"\tRunning {i}...", end='')
-  # call reader
-  while True:
-    try:
-      writer_client = boto3.client('lambda', region_name='eu-central-1')
-      response = writer_client.invoke(
-        FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-sns-writer-antipodelambdasnswriter-KF1XUHS9ULYR',
-        InvocationType='RequestResponse',
-        Payload=json.dumps(payload),
-      )
-      code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
-      if code == 200:
-        print(f"Done!")
-        break
-
-      sys.stdout.flush()
-    except Exception as e:
-      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
-      pass
-
-def start_sns():
-  _clean_mysql()
-  _clean_dynamo()
-  _clean_sqs()
-
-  print("[INFO] Running... ")
-  for r in range(max(1, int(ITER/MAX_CONNECTIONS))):
-    print(f"\t--- Round #{r} --")
-    # for i in range(ITER):
-    #   _lambda_sns_invoke(i)
-
-    pool = mp.Pool(processes=psutil.cpu_count())
-    pool.map(_lambda_sns_invoke, range(MAX_CONNECTIONS*r, MAX_CONNECTIONS*r + MAX_CONNECTIONS))
-    pool.close()
-    pool.join()
-
-  print("[INFO] Done!")
-
-  _gather_sns_with_sqs()
 
 def _gather_sns():
   print("[INFO] Reading eval entries from Dynamo ...")
@@ -412,11 +211,193 @@ def _gather_sns_with_sqs():
 
   print(df.describe())
 
+
+#############################
+# DYNAMO ONLY
+#
+def start_dynamo():
+  _clean_dynamo()
+  _clean_mysql()
+
+  print("[INFO] Running...", end='')
+  manager = mp.Manager()
+  evaluation = manager.dict()
+  # created pool running maximum 4 tasks
+  pool = mp.Pool(4)
+  for i in range(ITER):
+    pool.apply_async(_lambda_reader_invoke, args=(evaluation, i))
+  pool.close()
+  pool.join()
+  _gather_dynamo(dict(evaluation).values())
+  print("[INFO] Done!")
+
+#############################
+# SQL ONLY
+#
+def _lambda_sql_only_invoke(evaluation,i):
+  event_payload = json.dumps({
+    "i": i,
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  })
+
+  # call reader
+  print(f"\tRunning {i}...", end='')
+  while True:
+    try:
+      reader_client = boto3.client('lambda', region_name='us-east-1')
+      response = reader_client.invoke(
+          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-sql-only-antipodelambdasqlonlyrea-1NIXL0J15WX62',
+          InvocationType='RequestResponse',
+          Payload=event_payload,
+        )
+      payload = json.loads(response['Payload'].read())
+      code = int(payload.get('statusCode', 500))
+      if code == 200:
+        evaluation[i] = json.loads(payload['body'])['evaluation']
+        print(f"Done!")
+        break
+      else:
+        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
+      time.sleep(1)
+    except Exception as e:
+      request_id = response['ResponseMetadata']['RequestId']
+      print(f"[ERROR] Excep1tion while invoking AWS Writer Lambda for #{i} and request id '{request_id}':\n\t{e}")
+      time.sleep(5)
+    finally:
+      sys.stdout.flush()
+
+def start_sql_only():
+  _clean_mysql()
+
+  print("[INFO] Running... ")
+  manager = mp.Manager()
+  evaluation = manager.dict()
+  for r in range(max(1, int(ITER/MAX_CONNECTIONS))):
+    print(f"\t--- Round #{r} --")
+
+    pool = mp.Pool(psutil.cpu_count())
+    for i in range(MAX_CONNECTIONS*r, MAX_CONNECTIONS*r + MAX_CONNECTIONS):
+      pool.apply_async(_lambda_sql_only_invoke, args=(evaluation, i))
+    pool.close()
+    print("\tWaiting on tasks... ")
+    pool.join()
+    print("\tDone... ")
+
+  print("[INFO] Done!")
+
+  _gather_dynamo(dict(evaluation).values())
+
+#############################
+# DYNAMO PLUS SQL
+#
+def _lambda_dynamo_plus_sql_invoke(evaluation,i):
+  event_payload = json.dumps({
+    "i": i,
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  })
+
+  # call reader
+  print(f"\tRunning {i}...", end='')
+  while True:
+    try:
+      reader_client = boto3.client('lambda', region_name='us-east-1')
+      response = reader_client.invoke(
+          FunctionName='arn:aws:lambda:us-east-1:641424397462:function:antipode-lambda-dyplussql-antipodelambdadyplussqlr-165OMBK52NYJZ',
+          InvocationType='RequestResponse',
+          Payload=event_payload,
+        )
+      payload = json.loads(response['Payload'].read())
+      code = int(payload.get('statusCode', 500))
+      if code == 200:
+        evaluation[i] = json.loads(payload['body'])['evaluation']
+        print(f"Done!")
+        break
+      else:
+        print(f"[ERROR] AWS Lambda did not return 200: {payload}")
+      time.sleep(1)
+    except Exception as e:
+      request_id = response['ResponseMetadata']['RequestId']
+      print(f"[ERROR] Excep1tion while invoking AWS Writer Lambda for #{i} and request id '{request_id}':\n\t{e}")
+      time.sleep(5)
+    finally:
+      sys.stdout.flush()
+
+def start_dynamo_plus_sql_only():
+  _clean_mysql()
+
+  print("[INFO] Running... ")
+  manager = mp.Manager()
+  evaluation = manager.dict()
+  for r in range(max(1, int(ITER/MAX_CONNECTIONS))):
+    print(f"\t--- Round #{r} --")
+
+    pool = mp.Pool(psutil.cpu_count())
+    for i in range(MAX_CONNECTIONS*r, MAX_CONNECTIONS*r + MAX_CONNECTIONS):
+      pool.apply_async(_lambda_dynamo_plus_sql_invoke, args=(evaluation, i))
+    pool.close()
+    print("\tWaiting on tasks... ")
+    pool.join()
+    print("\tDone... ")
+
+  print("[INFO] Done!")
+
+  _gather_dynamo(dict(evaluation).values())
+
+
+#############################
+# SNS
+#
+def _lambda_sns_invoke(i):
+  payload = {
+    "i": i,
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  }
+
+  print(f"\tRunning {i}...", end='')
+  # call reader
+  while True:
+    try:
+      writer_client = boto3.client('lambda', region_name='eu-central-1')
+      response = writer_client.invoke(
+        FunctionName='arn:aws:lambda:eu-central-1:641424397462:function:antipode-lambda-sns-writer-antipodelambdasnswriter-KF1XUHS9ULYR',
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload),
+      )
+      code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+      if code == 200:
+        print(f"Done!")
+        break
+
+      sys.stdout.flush()
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      pass
+
+def start_sns():
+  _clean_mysql()
+  _clean_dynamo()
+  _clean_sqs()
+
+  print("[INFO] Running... ")
+  for r in range(max(1, int(ITER/MAX_CONNECTIONS))):
+    print(f"\t--- Round #{r} --")
+    # for i in range(ITER):
+    #   _lambda_sns_invoke(i)
+
+    pool = mp.Pool(processes=psutil.cpu_count())
+    pool.map(_lambda_sns_invoke, range(MAX_CONNECTIONS*r, MAX_CONNECTIONS*r + MAX_CONNECTIONS))
+    pool.close()
+    pool.join()
+
+  print("[INFO] Done!")
+
+  _gather_sns_with_sqs()
+
 #############################
 # MAIN
 #
 if __name__ == '__main__':
-  start_sql_only()
+  start_dynamo_plus_sql_only()
 
 # without fetch time - fetch B
 # count         2000.00000         2000.000000
@@ -480,3 +461,25 @@ if __name__ == '__main__':
 # 50%            11.000000          13.000000           2.192128           0.815482         0.577556         0.739543
 # 75%            17.000000          23.000000           2.555330           0.841857         0.837704         1.142574
 # max            30.000000          89.000000           5.798233           2.667064         1.438102         4.111954
+
+# 2k - sql only
+#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
+# count             1988.0        1988.000000        1988.000000        1988.000000      1988.000000      1988.000000
+# mean                 0.0           4.537223           7.329634           1.472932         0.004282         5.808273
+# std                  0.0          15.848716           4.394447           0.215774         0.011736         4.399615
+# min                  0.0           0.000000           1.816680           1.314229         0.000628         0.223146
+# 25%                  0.0           1.000000           3.789205           1.383450         0.001405         2.280057
+# 50%                  0.0           1.000000           5.885877           1.409685         0.001839         4.317258
+# 75%                  0.0           1.000000          10.082295           1.454273         0.002389         8.481750
+# max                  0.0         156.000000          25.579203           2.903781         0.259202        24.062378
+
+# 5k - sql only
+#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
+# count             4899.0        4899.000000        4899.000000        4899.000000      4899.000000      4899.000000
+# mean                 0.0           2.959788          18.064645           1.501048         0.017527        16.484854
+# std                  0.0          12.054483          12.398301           0.307866         0.034965        12.365029
+# min                  0.0           0.000000           1.982766           1.184953         0.000533         0.494479
+# 25%                  0.0           1.000000           7.916324           1.380827         0.002115         6.353764
+# 50%                  0.0           1.000000          14.650672           1.403381         0.003874        13.062231
+# 75%                  0.0           1.000000          26.820272           1.441151         0.012459        25.249679
+# max                  0.0         158.000000          59.768765           3.398093         0.463431        58.190985
