@@ -80,12 +80,17 @@ def _clean_dynamo():
     data = response.get('Items')
 
     while 'LastEvaluatedKey' in response:
-      response = table.scan(ProjectionExpression, ExclusiveStartKey=response['LastEvaluatedKey'])
+      response = table.scan(ProjectionExpression=keys, ExclusiveStartKey=response['LastEvaluatedKey'])
       data.extend(response['Items'])
+      with table.batch_writer() as batch:
+        for each in data:
+          batch.delete_item(Key={key: each[key] for key in tableKeyNames})
 
-    with table.batch_writer() as batch:
-      for each in data:
-        batch.delete_item(Key={key: each[key] for key in tableKeyNames})
+      # avoid errors due to high
+      print("...", end='')
+      time.sleep(10)
+
+
 
     table_describe = boto3.client('dynamodb').describe_table(TableName=table_name)
     # assert(table_describe['Table']['ItemCount'] == 0)
@@ -191,14 +196,19 @@ def _gather_sns_with_sqs():
     messages = queue.receive_messages(MaxNumberOfMessages=10)
     print(f"\tRead {len(messages)} messages:")
     if len(messages) == 0:
-      sleep(10)
+      time.sleep(10)
     for message in messages:
       # example entry:
       #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
       item = json.loads(json.loads(message.body)['responsePayload']['body'])
       results[int(item['i'])] = {
+        'ts_sns_spent': int(item['ts_sns_spent']),
         'read_post_retries': int(item['read_post_retries']),
         'ts_read_post_spent': int(item['ts_read_post_spent']),
+        'read_post_key_retries': int(item['read_post_key_retries']),
+        'ts_read_post_key_spent': int(item['ts_read_post_key_spent']),
+        'read_post_blob_retries': int(item['read_post_blob_retries']),
+        'ts_read_post_blob_spent': int(item['ts_read_post_blob_spent']),
       }
 
       print(f"\t\tReading #{item['i']} - {len(results)}/{ITER} ...")
@@ -230,6 +240,7 @@ def start_dynamo():
   pool.join()
   _gather_dynamo(dict(evaluation).values())
   print("[INFO] Done!")
+
 
 #############################
 # SQL ONLY
@@ -287,6 +298,7 @@ def start_sql_only():
 
   _gather_dynamo(dict(evaluation).values())
 
+
 #############################
 # DYNAMO PLUS SQL
 #
@@ -323,6 +335,7 @@ def _lambda_dynamo_plus_sql_invoke(evaluation,i):
       sys.stdout.flush()
 
 def start_dynamo_plus_sql_only():
+  _clean_dynamo()
   _clean_mysql()
 
   print("[INFO] Running... ")
@@ -397,89 +410,42 @@ def start_sns():
 # MAIN
 #
 if __name__ == '__main__':
-  start_dynamo_plus_sql_only()
+  start_sns()
 
-# without fetch time - fetch B
-# count         2000.00000         2000.000000
-# mean             0.00250       246756.477500
-# std              0.04995       149623.961279
-# min              0.00000          444.000000
-# 25%              0.00000       126371.750000
-# 50%              0.00000       247845.000000
-# 75%              0.00000       376600.000000
-# max              1.00000       484361.000000
-
-# with fetch time - fetch K
-# count        1000.000000         1000.000000
-# mean           40.452000          163.517000
-# std            42.621101          173.906674
-# min             0.000000            0.000000
-# 25%             0.000000            0.000000
-# 50%            29.000000          108.500000
-# 75%            69.250000          285.250000
-# max           201.000000          815.000000
-
-# without fetch time - fetch K
-# count        1000.000000         1000.000000
-# mean           57.581000          242.200000
-# std            66.927833          296.663795
-# min             0.000000            0.000000
-# 25%            15.000000           61.000000
-# 50%            42.000000          169.000000
-# 75%            74.000000          298.500000
-# max           416.000000         1705.000000
-
-# swith while with with on mysql conn
-# count        1000.000000         1000.000000
-# mean           34.594000          135.808000
-# std            37.227047          146.169301
-# min             0.000000            0.000000
-# 25%             0.000000            4.000000
-# 50%            25.000000           96.000000
-# 75%            55.000000          214.000000
-# max           185.000000          743.000000
+  # clean table before running lambda
+  # print("[INFO] Truncating MySQL table... ", end='')
+  # db = 'antipode'
+  # mysql_conn = pymysql.connect('antipode-lambda-global-cluster-1.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+  #     port = 3306,
+  #     user='antipode',
+  #     password='antipode',
+  #     connect_timeout=60,
+  #     database='antipode',
+  #     autocommit=True
+  #   )
+  # with mysql_conn.cursor() as cursor:
+  #   sql = f"SHOW TABLE STATUS"
+  #   cursor.execute(sql)
+  #   pprint(cursor.fetchone())
 
 
-# 10k - SNS
-#        read_post_retries  ts_read_post_spent
-# count        10000.00000        10000.000000
-# mean            27.59600          201.007900
-# std             31.17438          195.334813
-# min              0.00000            0.000000
-# 25%              2.00000           23.000000
-# 50%             17.00000          162.000000
-# 75%             43.00000          316.000000
-# max            357.00000         1592.000000
+#        read_post_retries  ts_read_post_spent  ts_sns_spent
+# count        5000.000000         5000.000000   5000.000000
+# mean            0.002000          388.737400   1008.931800
+# std             0.044681          178.916941    818.197066
+# min             0.000000            0.000000      0.000000
+# 25%             0.000000          340.000000      1.000000
+# 50%             0.000000          401.000000   1113.000000
+# 75%             0.000000          445.000000   1661.000000
+# max             1.000000          896.000000   2671.000000
 
-# 10k - dynamo only
-#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
-# count       10000.000000       10000.000000       10000.000000       10000.000000     10000.000000     10000.000000
-# mean           11.001300          14.652800           2.237202           0.828056         0.572797         0.791970
-# std             7.297727          11.973136           0.460329           0.078166         0.310182         0.517043
-# min             0.000000           0.000000           1.119925           0.645902         0.049530         0.089410
-# 25%             5.000000           4.000000           1.900966           0.794139         0.300582         0.340516
-# 50%            11.000000          13.000000           2.192128           0.815482         0.577556         0.739543
-# 75%            17.000000          23.000000           2.555330           0.841857         0.837704         1.142574
-# max            30.000000          89.000000           5.798233           2.667064         1.438102         4.111954
 
-# 2k - sql only
-#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
-# count             1988.0        1988.000000        1988.000000        1988.000000      1988.000000      1988.000000
-# mean                 0.0           4.537223           7.329634           1.472932         0.004282         5.808273
-# std                  0.0          15.848716           4.394447           0.215774         0.011736         4.399615
-# min                  0.0           0.000000           1.816680           1.314229         0.000628         0.223146
-# 25%                  0.0           1.000000           3.789205           1.383450         0.001405         2.280057
-# 50%                  0.0           1.000000           5.885877           1.409685         0.001839         4.317258
-# 75%                  0.0           1.000000          10.082295           1.454273         0.002389         8.481750
-# max                  0.0         156.000000          25.579203           2.903781         0.259202        24.062378
-
-# 5k - sql only
-#        read_notf_retries  read_post_retries  time_spent_reader  time_spent_writer  time_spent_notf  time_spent_post
-# count             4899.0        4899.000000        4899.000000        4899.000000      4899.000000      4899.000000
-# mean                 0.0           2.959788          18.064645           1.501048         0.017527        16.484854
-# std                  0.0          12.054483          12.398301           0.307866         0.034965        12.365029
-# min                  0.0           0.000000           1.982766           1.184953         0.000533         0.494479
-# 25%                  0.0           1.000000           7.916324           1.380827         0.002115         6.353764
-# 50%                  0.0           1.000000          14.650672           1.403381         0.003874        13.062231
-# 75%                  0.0           1.000000          26.820272           1.441151         0.012459        25.249679
-# max                  0.0         158.000000          59.768765           3.398093         0.463431        58.190985
+#        ts_sns_spent  read_post_retries  ts_read_post_spent  read_post_key_retries  ts_read_post_key_spent  read_post_blob_retries  ts_read_post_blob_spent
+# count   5000.000000        5000.000000         5000.000000            5000.000000             5000.000000                  5000.0              5000.000000
+# mean     859.218200           1.364400          362.242200               1.364400               11.408600                     0.0               350.465000
+# std      755.584801          11.301131          235.984411              11.301131               48.609108                     0.0               226.581661
+# min        0.000000           0.000000            0.000000               0.000000                0.000000                     0.0                 0.000000
+# 25%        0.000000           0.000000          139.750000               0.000000                0.000000                     0.0               138.000000
+# 50%     1049.500000           0.000000          381.000000               0.000000                0.000000                     0.0               380.000000
+# 75%     1552.000000           0.000000          474.000000               0.000000                5.000000                     0.0               447.000000
+# max     2229.000000         232.000000          897.000000             232.000000              378.000000                     0.0               897.000000
