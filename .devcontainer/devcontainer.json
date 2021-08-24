@@ -18,7 +18,10 @@
 	"extensions": [
 		"amazonwebservices.aws-toolkit-vscode",
 		"mrmlnc.vscode-duplicate"
-	]
+	],
+
+	// Folder to work on
+	"workspaceFolder": "/app"
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
