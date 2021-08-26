@@ -2,3 +2,4 @@ credentials
 **/.aws-sam
 **/gather/**
 debug.py
+old-lambdas
