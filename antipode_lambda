@@ -424,6 +424,9 @@ def gather__mysql_sns(args):
   # save the pandas describe
   with open(info_path, 'w') as f:
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
+    print("", file=f)
+    print(f"% inconsistencies: {len(df.query('read_post_retries > 0'))/float(len(df))}", file=f)
+    print("", file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
   with open(info_path, 'r') as f:
