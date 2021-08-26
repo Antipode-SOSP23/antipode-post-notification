@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Antipode Lambda - MySQL<>SNS - Reader
+Resources:
+  AntipodeLambdaMysqlSnsReader:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: reader.lambda_handler
+      Runtime: python3.7
+      CodeUri: .
+      Description: Antipode Lambda - MySQL<>SNS - Reader
+      MemorySize: 128
+      Timeout: 900
+      Role: arn:aws:iam::641424397462:role/antipode-lambda-admin
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Region: eu-central-1
+            Topic: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications
+      EventInvokeConfig:
+        DestinationConfig:
+          OnSuccess:
+            Type: SQS
+            Destination: arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval
+      Environment:
+        Variables:
+          MYSQL_HOST: antipode-lambda-us.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com
+          MYSQL_PORT: 3306
+          MYSQL_USER: antipode
+          MYSQL_PASSWORD: antipode
+          MYSQL_DB: antipode
+          MYSQL_POST_TABLE_NAME: blobs
+          MYSQL_NOTIFICATIONS_TABLE_NAME: keyvalue
