@@ -184,6 +184,66 @@ def build__mysql_sns(args):
     lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
     _put_last(f"{MYSQL_SNS__READER__STACK_NAME}__reader_lambda__arn", lambda_details['Configuration']['FunctionArn'])
 
+def build__mysql_dynamo(args):
+  from plumbum.cmd import sam
+
+  # validate writer template before deploying
+  if args['writer']:
+    os.chdir(ROOT_PATH / 'mysql-dynamo' / 'writer')
+    # Due to bug with SSL we comment this
+    # sam['validate', '--region', WRITER_ZONE] & FG
+    sam['build'] & FG
+
+  # validate reader template before deploying
+  # if args['reader']:
+  #   os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
+  #   # Due to bug with SSL we comment this
+  #   # sam['validate', '--region', READER_ZONE] & FG
+  #   sam['build'] & FG
+
+  # deploy the writer
+  if args['writer']:
+    os.chdir(ROOT_PATH / 'mysql-dynamo' / 'writer')
+    sam['deploy',
+        '--region', WRITER_ZONE,
+        '--stack-name', MYSQL_DYNAMO__WRITER__STACK_NAME,
+        '--s3-bucket', WRITER_S3_BUCKET,
+        '--s3-prefix', f"{MYSQL_DYNAMO__WRITER__STACK_NAME}",
+        '--force-upload',
+        '--profile', CREDENTIALS_PROFILE,
+        '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
+        '--capabilities', 'CAPABILITY_IAM',
+        '--no-confirm-changeset',
+        '--no-fail-on-empty-changeset' # so if no changes this does not exit
+    ] & FG
+    # grab the arn of the deployed lambda
+    cli_cloudformation = boto3.client('cloudformation', region_name=WRITER_ZONE)
+    stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_DYNAMO__WRITER__STACK_NAME, LogicalResourceId=MYSQL_DYNAMO__WRITER__LAMBDA_NAME)['StackResourceDetail']
+    cli_lambda = boto3.client('lambda', region_name=WRITER_ZONE)
+    lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
+    _put_last(f"{MYSQL_DYNAMO__WRITER__STACK_NAME}__writer_lambda__arn", lambda_details['Configuration']['FunctionArn'])
+
+  # deploy the reader
+  # if args['reader']:
+  #   os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
+  #   sam['deploy',
+  #       '--region', READER_ZONE,
+  #       '--stack-name', MYSQL_SNS__READER__STACK_NAME,
+  #       '--s3-bucket', READER_S3_BUCKET,
+  #       '--s3-prefix', f"{MYSQL_SNS__READER__STACK_NAME}",
+  #       '--force-upload',
+  #       '--profile', CREDENTIALS_PROFILE,
+  #       '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
+  #       '--capabilities', 'CAPABILITY_IAM',
+  #       '--no-confirm-changeset',
+  #       '--no-fail-on-empty-changeset' # so if no changes this does not exit
+  #   ] & FG
+  #   # grab the arn of the deployed lambda
+  #   cli_cloudformation = boto3.client('cloudformation', region_name=READER_ZONE)
+  #   stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_SNS__READER__STACK_NAME, LogicalResourceId=MYSQL_SNS__READER__LAMBDA_NAME)['StackResourceDetail']
+  #   cli_lambda = boto3.client('lambda', region_name=READER_ZONE)
+  #   lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
+  #   _put_last(f"{MYSQL_SNS__READER__STACK_NAME}__reader_lambda__arn", lambda_details['Configuration']['FunctionArn'])
 
 #--------------
 # CLEAN
@@ -256,6 +316,8 @@ def _clean_sqs():
 
   print("Done!")
 
+def _clean_dynamo():
+  print("MISSING")
 
 def clean(args):
   app = args.pop('app', None)
@@ -290,6 +352,29 @@ def clean__mysql_sns(args):
       aws['cloudformation', 'delete-stack',
           '--region', WRITER_ZONE,
           '--stack-name', MYSQL_SNS__WRITER__STACK_NAME
+      ] & FG
+      print("Done!")
+
+    if args['reader']:
+      print("\t[INFO] Deleting reader stack... ", end='', flush=True)
+      aws['cloudformation', 'delete-stack',
+          '--region', READER_ZONE,
+          '--stack-name', MYSQL_SNS__READER__STACK_NAME
+      ] & FG
+      print("Done!")
+
+def clean__mysql_dynamo(args):
+  _clean_mysql()
+  _clean_dynamo()
+
+  if args['strong']:
+    from plumbum.cmd import aws
+
+    if args['writer']:
+      print("\t[INFO] Deleting writer stack... ", end='', flush=True)
+      aws['cloudformation', 'delete-stack',
+          '--region', WRITER_ZONE,
+          '--stack-name', MYSQL_DYNAMO__WRITER__STACK_NAME
       ] & FG
       print("Done!")
 
@@ -439,13 +524,20 @@ def gather__mysql_sns(args):
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 AVAILABLE_APPLICATIONS = [
-  # In this application we use AWS Simple Notification System to deliver cross-region notifications
-  # from posts that got written in a table in a SQL database.
-  # There are 2 lambdas: the reader and the writer.
-  # The writer is triggered by this script while the reader was configured to trigger upon receiving
-  # a new notification on the other zone. You will not see the reader triggered here in this script.
-  # The evaluation results are placed in a queue at AWS SQS.
+  # - Post datastore: MySQL
+  # - Notification datastore: SNS
+  # - Writer lambda: triggered by this script
+  # - Reader lambda: configured to trigger upon receiving a new notification on the other zone.
+  #       You will not see the reader triggered here in this script.
+  #       The reader will read directly from the writer zone - SNS has no cross-region functionalities.
+  # - Eval: results will be placed on a queue only for that at SQS
   'mysql-sns',
+  # - Post datastore: MySQL
+  # - Notification datastore: DynamoDB
+  # - Writer lambda: ?
+  # - Reader lambda: ?
+  # - Eval: results will be placed on a queue only for that at SQS
+  'mysql-dynamo',
 ]
 CPU_COUNT = mp.cpu_count()
 WRITER_ZONE = 'eu-central-1'
@@ -481,6 +573,12 @@ MYSQL_SNS__WRITER__STACK_NAME = 'mysql-sns-writer'
 MYSQL_SNS__WRITER__LAMBDA_NAME = 'AntipodeLambdaMysqlSnsWriter'
 MYSQL_SNS__READER__STACK_NAME = 'mysql-sns-reader'
 MYSQL_SNS__READER__LAMBDA_NAME = 'AntipodeLambdaMysqlSnsReader'
+
+# mysql-dynamo deployment vars
+MYSQL_DYNAMO__WRITER__STACK_NAME = 'mysql-dynamo-writer'
+MYSQL_DYNAMO__WRITER__LAMBDA_NAME = 'AntipodeLambdaMysqlDynamoWriter'
+MYSQL_DYNAMO__READER__STACK_NAME = 'mysql-dynamo-reader'
+MYSQL_DYNAMO__READER__LAMBDA_NAME = 'AntipodeLambdaMysqlDynamoReader'
 
 
 #--------------
