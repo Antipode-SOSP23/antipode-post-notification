@@ -1,0 +1,522 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+from pprint import pprint
+import os
+import sys
+import argparse
+import multiprocessing as mp
+from multiprocessing import Pool
+import boto3
+import json
+from datetime import datetime
+from plumbum import local
+from plumbum import FG, BG
+import time
+from tqdm import tqdm
+import pandas as pd
+# pd.set_option('display.float_format', lambda x: '%.3f' % x)
+pd.set_option('display.html.table_schema', True)
+pd.set_option('display.precision', 2)
+pd.set_option('max_columns', None)
+pd.set_option('display.expand_frame_repr', False)
+
+
+#--------------
+# AWS AURORA GLOBAL CLUSTER
+#--------------
+#   1. Go to eu-central-1 zone
+#   2. Go to RDS dashboard and click on "Create Database"
+#   3. Select "Standard Create"
+#       - Engine type: Amazon Aurora
+#       - MySQL compatibility
+#       - Provisioned
+#       - Single Master
+#       - Select a version that supports "Global Database" feature
+#       - Select PRODUCTION template
+#       - Cluster name: 'antipode-lambda-eu'
+#       - Username: 'antipode' / Password: 'antipode'
+#       - Choose an instance class (tick "Include previous generations" for older and cheaper instances)
+#       - Do not create Multi-AZ deployment
+#       - Public access: YES
+#       - Choose 'allow-all' VPC group
+#       - Database port: 3306
+#       - Disable Encryption
+#       - Disable Performance Insights
+#       - Disable Enhanced monitoring
+#       - Disable auto minor version upgrade
+#       - Disable delete protection
+#   3. Wait for all the instances to be created
+#   4. Select the 'antipode-lambda-eu' cluster and perform the action 'Add AWS zone'
+#       - Global database identifier: antipode-lambda
+#       - Secondary region: US East (N Virginia)
+#       - *Choose all the above configurations for the new instance when possible*
+#       - DB instance identifier: antipode-lambda-us-instance
+#       - DB cluster identifier: antipode-lambda-us
+#   . Modify 'antipode-lambda-us-instance-1' name to 'antipode-lambda-us-instance'
+#
+# ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
+#--------------
+
+#--------------
+# AWS SQS QUEUE
+#--------------
+#   1. Go to us-east-1 zone and to the AWS SQS dashboard
+#   2. Create queue with the following parameters:
+#         - Standard type
+#         - name: *SQS_EVAL_QUEUE['name']*
+#--------------
+
+#--------------
+# AWS SNS GLOBAL
+#--------------
+#   1. Go to eu-central-1 zone and to the AWS SNS dashboard
+#   2. Go to Topics and create a new one with the following parameters:
+#         - Standard type
+#         - name: antipode-lambda-notifications
+#--------------
+
+
+#--------------
+# HELPERS
+#--------------
+def _generate_payload(i):
+  import random
+  import string
+  from datetime import datetime
+
+  return {
+    "i": i,
+    "timestamp": datetime.now().timestamp(),
+    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+  }
+
+def _put_last(k,v):
+  import yaml
+  with open(LAST_INFO_FILE, 'r') as f:
+    doc = yaml.safe_load(f)
+  doc[k] = v
+  with open(LAST_INFO_FILE, 'w') as f:
+      yaml.safe_dump(doc, f, default_flow_style=False)
+
+def _get_last(k):
+  import yaml
+  with open(LAST_INFO_FILE, 'r') as f:
+    doc = yaml.safe_load(f)
+  return doc[k]
+
+
+#--------------
+# BUILD
+#--------------
+def build(args):
+  app = args.pop('app', None)
+
+  # it actually means neither writer or reader got selected
+  # hence we execute both
+  if not args['writer'] and not args['reader']:
+    args['writer'] = args['reader'] = True
+
+  try:
+    getattr(sys.modules[__name__], f"build__{app}")(args)
+  except KeyboardInterrupt:
+    # if the compose gets interrupted we just continue with the script
+    pass
+
+def build__mysql_sns(args):
+  from plumbum.cmd import sam
+
+  # validate writer template before deploying
+  if args['writer']:
+    os.chdir(ROOT_PATH / 'mysql-sns' / 'writer')
+    # Due to bug with SSL we comment this
+    # sam['validate', '--region', WRITER_ZONE] & FG
+    sam['build'] & FG
+
+  # validate reader template before deploying
+  if args['reader']:
+    os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
+    # Due to bug with SSL we comment this
+    # sam['validate', '--region', READER_ZONE] & FG
+    sam['build'] & FG
+
+  # deploy the writer
+  if args['writer']:
+    os.chdir(ROOT_PATH / 'mysql-sns' / 'writer')
+    sam['deploy',
+        '--region', WRITER_ZONE,
+        '--stack-name', MYSQL_SNS__WRITER__STACK_NAME,
+        '--s3-bucket', WRITER_S3_BUCKET,
+        '--s3-prefix', f"{MYSQL_SNS__WRITER__STACK_NAME}",
+        '--force-upload',
+        '--profile', CREDENTIALS_PROFILE,
+        '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
+        '--capabilities', 'CAPABILITY_IAM',
+        '--no-confirm-changeset',
+        '--no-fail-on-empty-changeset' # so if no changes this does not exit
+    ] & FG
+    # grab the arn of the deployed lambda
+    cli_cloudformation = boto3.client('cloudformation', region_name=WRITER_ZONE)
+    stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_SNS__WRITER__STACK_NAME, LogicalResourceId=MYSQL_SNS__WRITER__LAMBDA_NAME)['StackResourceDetail']
+    cli_lambda = boto3.client('lambda', region_name=WRITER_ZONE)
+    lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
+    _put_last(f"{MYSQL_SNS__WRITER__STACK_NAME}__writer_lambda__arn", lambda_details['Configuration']['FunctionArn'])
+
+  # deploy the reader
+  if args['reader']:
+    os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
+    sam['deploy',
+        '--region', READER_ZONE,
+        '--stack-name', MYSQL_SNS__READER__STACK_NAME,
+        '--s3-bucket', READER_S3_BUCKET,
+        '--s3-prefix', f"{MYSQL_SNS__READER__STACK_NAME}",
+        '--force-upload',
+        '--profile', CREDENTIALS_PROFILE,
+        '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
+        '--capabilities', 'CAPABILITY_IAM',
+        '--no-confirm-changeset',
+        '--no-fail-on-empty-changeset' # so if no changes this does not exit
+    ] & FG
+    # grab the arn of the deployed lambda
+    cli_cloudformation = boto3.client('cloudformation', region_name=READER_ZONE)
+    stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_SNS__READER__STACK_NAME, LogicalResourceId=MYSQL_SNS__READER__LAMBDA_NAME)['StackResourceDetail']
+    cli_lambda = boto3.client('lambda', region_name=READER_ZONE)
+    lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
+    _put_last(f"{MYSQL_SNS__READER__STACK_NAME}__reader_lambda__arn", lambda_details['Configuration']['FunctionArn'])
+
+
+#--------------
+# CLEAN
+#--------------
+def _clean_mysql():
+  import pymysql
+  import pymysql.cursors
+
+  # clean table before running lambda
+  print("\t[INFO] Truncating MySQL table... ", end='', flush=True)
+  mysql_conn = pymysql.connect(
+      host=MYSQL_CONNECTION['host'],
+      port=MYSQL_CONNECTION['port'],
+      user=MYSQL_CONNECTION['user'],
+      password=MYSQL_CONNECTION['password'],
+      connect_timeout=60,
+      autocommit=True
+    )
+  with mysql_conn.cursor() as cursor:
+    try:
+      sql = f"DROP DATABASE `{MYSQL_DB}`"
+      cursor.execute(sql)
+    except (pymysql.err.InternalError, pymysql.err.OperationalError) as e:
+      code, msg = e.args
+      if code == 1008:
+        # database does not exist hence we ignore
+        pass
+      else:
+        print(f"[WARN] MySQL error: {e}")
+        exit(-1)
+
+    try:
+      sql = f"CREATE DATABASE `{MYSQL_DB}`"
+      cursor.execute(sql)
+      sql = f"USE `{MYSQL_DB}`"
+      cursor.execute(sql)
+    except pymysql.err.InternalError as e:
+      print(f"[WARN] MySQL error: {e}")
+      exit(-1)
+
+    sql = f"CREATE TABLE `{MYSQL_POST_TABLE_NAME}` (k BIGINT, v VARCHAR(8), b LONGBLOB)"
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_POST_TABLE_NAME}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
+    notf_table = 'keyvalue'
+    sql = f"CREATE TABLE `{MYSQL_NOTIFICATIONS_TABLE_NAME}` (k BIGINT, v VARCHAR(8))"
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_NOTIFICATIONS_TABLE_NAME}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+  print("Done!")
+
+def _clean_sqs():
+  from botocore.exceptions import ClientError
+
+  try:
+    print("\t[INFO] Purging SQS eval queue... ", end='', flush=True)
+    sqs = boto3.resource('sqs', region_name=READER_ZONE)
+    queue = sqs.get_queue_by_name(QueueName=SQS_EVAL_QUEUE['name'])
+    queue.purge()
+  except ClientError as e:
+    if type(e).__name__ == 'PurgeQueueInProgress':
+      print("Queue purge already in progress, try in 60seconds... ", end='', flush=True)
+    else:
+      raise
+
+  print("Done!")
+
+
+def clean(args):
+  app = args.pop('app', None)
+
+  # it actually means neither writer or reader got selected
+  # hence we execute both
+  if args['strong'] and (not args['writer'] and not args['reader']):
+    args['writer'] = args['reader'] = True
+
+  # if we passed writer or reader clean option that means its a strong clean for either
+  if args['writer'] or args['reader']:
+    args['strong'] = True
+
+
+  try:
+    print(f"[INFO] Cleaning for '{app}'... ")
+    getattr(sys.modules[__name__], f"clean__{app}")(args)
+    print("[INFO] Done!")
+  except KeyboardInterrupt:
+    # if the compose gets interrupted we just continue with the script
+    pass
+
+def clean__mysql_sns(args):
+  _clean_mysql()
+  _clean_sqs()
+
+  if args['strong']:
+    from plumbum.cmd import aws
+
+    if args['writer']:
+      print("\t[INFO] Deleting writer stack... ", end='', flush=True)
+      aws['cloudformation', 'delete-stack',
+          '--region', WRITER_ZONE,
+          '--stack-name', MYSQL_SNS__WRITER__STACK_NAME
+      ] & FG
+      print("Done!")
+
+    if args['reader']:
+      print("\t[INFO] Deleting reader stack... ", end='', flush=True)
+      aws['cloudformation', 'delete-stack',
+          '--region', READER_ZONE,
+          '--stack-name', MYSQL_SNS__READER__STACK_NAME
+      ] & FG
+      print("Done!")
+
+
+#--------------
+# RUN
+#--------------
+def run(args):
+  app = args.pop('app', None)
+  # update last file with requests info so we gather after
+  _put_last('app', app)
+  _put_last('requests', args['requests'])
+  # method to invoke
+  invoke_method = getattr(sys.modules[__name__], f"run__{app}__invoke")
+  try:
+    print(f"[INFO] Running '{app}' for #{args['requests']} requests... ")
+    pool = mp.Pool(processes=CPU_COUNT)
+    for _ in tqdm(pool.imap_unordered(invoke_method, range(args['requests'])), total=args['requests']):
+      pass
+    pool.close()
+    pool.join()
+  except KeyboardInterrupt:
+    # if the compose gets interrupted we just continue with the script
+    pass
+
+def run__mysql_sns__invoke(i):
+  writer_client = boto3.client('lambda', region_name=WRITER_ZONE)
+  while True:
+    try:
+      response = writer_client.invoke(
+        FunctionName=_get_last(f"{MYSQL_SNS__WRITER__STACK_NAME}__writer_lambda__arn"),
+        InvocationType='RequestResponse',
+        Payload=json.dumps(_generate_payload(i)),
+      )
+      response_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+      if response_code == 200:
+        break
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      exit(-1)
+
+
+#--------------
+# GATHER
+#--------------
+def gather(args):
+  app = args.pop('app', None)
+  # tag for this gather
+  if args['tag'] is None:
+    args['tag'] = input(f"Input any tag for this gather: ")
+
+  try:
+    getattr(sys.modules[__name__], f"gather__{app}")(args)
+  except KeyboardInterrupt:
+    # if the compose gets interrupted we just continue with the script
+    pass
+
+def gather__mysql_sns(args):
+  cli_sqs = boto3.client('sqs', region_name='us-east-1')
+
+  print("[INFO] Waiting for all messages to arrive at eval queue... ", end='', flush=True)
+  num_requests = _get_last('requests')
+  with tqdm(total=num_requests) as pbar:
+    while True:
+      reply = cli_sqs.get_queue_attributes(
+          QueueUrl=SQS_EVAL_QUEUE['url'],
+          AttributeNames=[ 'ApproximateNumberOfMessages' ]
+        )
+      num_messages = int(reply['Attributes']['ApproximateNumberOfMessages'])
+      # update pbar
+      pbar.n = min(num_messages, num_requests)
+      pbar.refresh()
+      # break if necessary or sleep 1 second per message missing
+      if num_messages >= num_requests:
+        break
+      else:
+        time.sleep((num_requests-num_messages)/1000.0)
+  print("Done!")
+
+  print("[INFO] Gater info through SQS... ", flush=True)
+  resource_sqs = boto3.resource('sqs', region_name=SQS_EVAL_QUEUE['region'])
+  eval_queue = resource_sqs.get_queue_by_name(QueueName=SQS_EVAL_QUEUE['name'])
+  results = {}
+  with tqdm(total=num_requests) as pbar:
+    while len(results) < num_requests:
+      # fetch max 10 messages :(
+      messages = eval_queue.receive_messages(MaxNumberOfMessages=10)
+      # sleep if no messages returned from SQS
+      if len(messages) == 0:
+        time.sleep(10)
+        continue
+
+      for message in messages:
+        # example entry:
+        #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
+        item = json.loads(json.loads(message.body)['responsePayload']['body'])
+        # index by i so we avoid duplicate results
+        results[int(item['i'])] = {
+          'ts_sns_spent': int(item['ts_sns_spent']),
+          'read_post_retries': int(item['read_post_retries']),
+          'ts_read_post_spent': int(item['ts_read_post_spent']),
+          'read_post_key_retries': int(item['read_post_key_retries']),
+          'ts_read_post_key_spent': int(item['ts_read_post_key_spent']),
+          'read_post_blob_retries': int(item['read_post_blob_retries']),
+          'ts_read_post_blob_spent': int(item['ts_read_post_blob_spent']),
+        }
+        message.delete()
+        pbar.update(1)
+  print("[INFO] Done!")
+
+  print("[INFO] Parsing evaluation ...", end='')
+  df = pd.DataFrame(results.values())
+
+  # generate path to save the results
+  gather_path = ROOT_PATH / 'mysql-sns' / 'gather' / f"{args['tag']}-{time.strftime('%Y%m%d%H%M%S')}"
+  os.makedirs(gather_path, exist_ok=True)
+  csv_path = gather_path / 'traces.csv'
+  info_path = gather_path / 'traces.info'
+
+  # save to csv so we can plot a timeline later
+  df.to_csv(csv_path, sep=';', mode='w')
+  print(f"[INFO] Save '{csv_path}'")
+
+  # save the pandas describe
+  with open(info_path, 'w') as f:
+    print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
+  print(f"[INFO] Save '{info_path}'\n")
+  # print file to stdout
+  with open(info_path, 'r') as f:
+    print(f.read())
+
+
+#--------------
+# CONSTANTS
+#--------------
+ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+LAST_INFO_FILE = ROOT_PATH / '.last.yml'
+AVAILABLE_APPLICATIONS = [
+  # In this application we use AWS Simple Notification System to deliver cross-region notifications
+  # from posts that got written in a table in a SQL database.
+  # There are 2 lambdas: the reader and the writer.
+  # The writer is triggered by this script while the reader was configured to trigger upon receiving
+  # a new notification on the other zone. You will not see the reader triggered here in this script.
+  # The evaluation results are placed in a queue at AWS SQS.
+  'mysql-sns',
+]
+CPU_COUNT = mp.cpu_count()
+WRITER_ZONE = 'eu-central-1'
+READER_ZONE = 'us-east-1'
+WRITER_S3_BUCKET = 'antipode-lambda-eu'
+READER_S3_BUCKET = 'antipode-lambda-us'
+IAM_LAMBDA_ADMIN_ROLE_ARN = 'arn:aws:iam::641424397462:role/antipode-lambda-admin'
+IAM_CLOUDFORMATION_ADMIN_ROLE_ARN = 'arn:aws:iam::641424397462:role/antipode-cloudformation-admin'
+CREDENTIALS_PROFILE = 'default'
+PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
+
+# mysql
+MYSQL_CONNECTION = {
+  'host': 'antipode-lambda-eu.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com',
+  'port': 3306,
+  'user': 'antipode',
+  'password': 'antipode',
+}
+MYSQL_DB = 'antipode'
+MYSQL_POST_TABLE_NAME = 'blobs'
+MYSQL_NOTIFICATIONS_TABLE_NAME = 'keyvalue'
+
+# sqs
+SQS_EVAL_QUEUE = {
+  'name': 'antipode-lambda-eval',
+  'region': 'us-east-1',
+  'url': 'https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval',
+  'arn': 'arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval'
+}
+
+# mysql-sns deployment vars
+MYSQL_SNS__WRITER__STACK_NAME = 'mysql-sns-writer'
+MYSQL_SNS__WRITER__LAMBDA_NAME = 'AntipodeLambdaMysqlSnsWriter'
+MYSQL_SNS__READER__STACK_NAME = 'mysql-sns-reader'
+MYSQL_SNS__READER__LAMBDA_NAME = 'AntipodeLambdaMysqlSnsReader'
+
+
+#--------------
+# CMD LINE
+#--------------
+if __name__ == '__main__':
+
+  # parse arguments
+  main_parser = argparse.ArgumentParser()
+  main_parser.add_argument("app", choices=AVAILABLE_APPLICATIONS, help="Application to deploy")
+
+  # different commands
+  subparsers = main_parser.add_subparsers(help='commands', dest='which')
+
+  # build application
+  build_parser = subparsers.add_parser('build', help='Build application')
+  build_parser.add_argument('-w', '--writer', action='store_true', help="Build only the writer")
+  build_parser.add_argument('-r', '--reader', action='store_true', help="Build only the reader")
+
+  # run application
+  run_parser = subparsers.add_parser('run', help='Run application')
+  run_parser.add_argument('-r', '--requests', type=int, default=1, help="Number of requests to run")
+
+  # clean application
+  clean_parser = subparsers.add_parser('clean', help='Clean application')
+  clean_parser.add_argument('-s', '--strong', action='store_true', help="Delete SAM stacks & Lambdas")
+  clean_parser.add_argument('-w', '--writer', action='store_true', help="Delete only the writer")
+  clean_parser.add_argument('-r', '--reader', action='store_true', help="Delete only the reader")
+
+  # run application
+  gather_parser = subparsers.add_parser('gather', help='Gather eval')
+  gather_parser.add_argument('-t', '--tag', type=str, default=None, help="Tags the gather")
+
+  # parse args
+  args = vars(main_parser.parse_args())
+  command = args.pop('which')
+
+  # replace hyphens with underscores for function names
+  args['app'] = args['app'].replace('-', '_')
+
+  # call parser method dynamically
+  getattr(sys.modules[__name__], command)(args)
