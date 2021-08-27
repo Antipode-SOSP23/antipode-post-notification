@@ -98,17 +98,22 @@ def _generate_payload(i):
 
 def _put_last(k,v):
   import yaml
-  with open(LAST_INFO_FILE, 'r') as f:
-    doc = yaml.safe_load(f)
+  # if file exists parse yaml otherwise create empty dict to write to
+  if Path(LAST_INFO_FILE).exists():
+    with open(LAST_INFO_FILE, 'r') as f:
+      doc = yaml.safe_load(f)
+  else:
+    doc = {}
+  # write new value and save to file
   doc[k] = v
-  with open(LAST_INFO_FILE, 'w') as f:
+  with open(LAST_INFO_FILE, 'w+') as f:
       yaml.safe_dump(doc, f, default_flow_style=False)
 
 def _get_last(k):
   import yaml
-  with open(LAST_INFO_FILE, 'r') as f:
+  with open(LAST_INFO_FILE, 'r+') as f:
     doc = yaml.safe_load(f)
-  return doc[k]
+  return doc.get(k)
 
 
 #--------------
