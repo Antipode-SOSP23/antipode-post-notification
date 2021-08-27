@@ -80,16 +80,21 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 # HELPERS
 #--------------
+generated_keys = []
 def _generate_payload(i):
   import random
   import string
   from datetime import datetime
 
-  return {
-    "i": i,
-    "timestamp": datetime.now().timestamp(),
-    "key": ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
-  }
+  while True:
+    key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    if key in generated_keys:
+      continue
+    else:
+      generated_keys.append(key)
+      break
+
+  return { "i": i, "key": key, "timestamp": datetime.utcnow().timestamp() }
 
 def _put_last(k,v):
   import yaml
