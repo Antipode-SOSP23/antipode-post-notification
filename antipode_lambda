@@ -430,18 +430,13 @@ def run__mysql_sns__invoke(i):
 #--------------
 def gather(args):
   app = args.pop('app', None)
+
   # tag for this gather
   if args['tag'] is None:
     args['tag'] = input(f"Input any tag for this gather: ")
 
-  try:
-    getattr(sys.modules[__name__], f"gather__{app}")(args)
-  except KeyboardInterrupt:
-    # if the compose gets interrupted we just continue with the script
-    pass
 
-def gather__mysql_sns(args):
-  cli_sqs = boto3.client('sqs', region_name='us-east-1')
+  cli_sqs = boto3.client('sqs', region_name=SQS_EVAL_QUEUE['region'])
 
   print("[INFO] Waiting for all messages to arrive at eval queue... ", end='', flush=True)
   num_requests = _get_last('requests')
@@ -478,10 +473,16 @@ def gather__mysql_sns(args):
       for message in messages:
         # example entry:
         #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
-        item = json.loads(json.loads(message.body)['responsePayload']['body'])
+
+        # events might come from Lambda destinations (with responsePayload)
+        # or sent manually inside lambdas
+        item = json.loads(message.body)
+        if 'responsePayload' in item:
+          item = json.loads(item['responsePayload']['body'])
+
         # index by i so we avoid duplicate results
         results[int(item['i'])] = {
-          'ts_sns_spent': int(item['ts_sns_spent']),
+          'ts_notification_spent': int(item['ts_notification_spent']),
           'read_post_retries': int(item['read_post_retries']),
           'ts_read_post_spent': int(item['ts_read_post_spent']),
           'read_post_key_retries': int(item['read_post_key_retries']),
@@ -497,7 +498,7 @@ def gather__mysql_sns(args):
   df = pd.DataFrame(results.values())
 
   # generate path to save the results
-  gather_path = ROOT_PATH / 'mysql-sns' / 'gather' / f"{args['tag']}-{time.strftime('%Y%m%d%H%M%S')}"
+  gather_path = ROOT_PATH / app.replace('_', '-') / 'gather' / f"{args['tag']}-{time.strftime('%Y%m%d%H%M%S')}"
   os.makedirs(gather_path, exist_ok=True)
   csv_path = gather_path / 'traces.csv'
   info_path = gather_path / 'traces.info'
