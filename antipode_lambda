@@ -15,6 +15,7 @@ from plumbum import FG, BG
 import time
 from tqdm import tqdm
 import pandas as pd
+from pathlib import Path
 # pd.set_option('display.float_format', lambda x: '%.3f' % x)
 pd.set_option('display.html.table_schema', True)
 pd.set_option('display.precision', 2)
@@ -205,11 +206,11 @@ def build__mysql_dynamo(args):
     sam['build'] & FG
 
   # validate reader template before deploying
-  # if args['reader']:
-  #   os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
-  #   # Due to bug with SSL we comment this
-  #   # sam['validate', '--region', READER_ZONE] & FG
-  #   sam['build'] & FG
+  if args['reader']:
+    os.chdir(ROOT_PATH / 'mysql-dynamo' / 'reader')
+    # Due to bug with SSL we comment this
+    # sam['validate', '--region', READER_ZONE] & FG
+    sam['build'] & FG
 
   # deploy the writer
   if args['writer']:
@@ -234,26 +235,27 @@ def build__mysql_dynamo(args):
     _put_last(f"{MYSQL_DYNAMO__WRITER__STACK_NAME}__writer_lambda__arn", lambda_details['Configuration']['FunctionArn'])
 
   # deploy the reader
-  # if args['reader']:
-  #   os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
-  #   sam['deploy',
-  #       '--region', READER_ZONE,
-  #       '--stack-name', MYSQL_SNS__READER__STACK_NAME,
-  #       '--s3-bucket', READER_S3_BUCKET,
-  #       '--s3-prefix', f"{MYSQL_SNS__READER__STACK_NAME}",
-  #       '--force-upload',
-  #       '--profile', CREDENTIALS_PROFILE,
-  #       '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
-  #       '--capabilities', 'CAPABILITY_IAM',
-  #       '--no-confirm-changeset',
-  #       '--no-fail-on-empty-changeset' # so if no changes this does not exit
-  #   ] & FG
-  #   # grab the arn of the deployed lambda
-  #   cli_cloudformation = boto3.client('cloudformation', region_name=READER_ZONE)
-  #   stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_SNS__READER__STACK_NAME, LogicalResourceId=MYSQL_SNS__READER__LAMBDA_NAME)['StackResourceDetail']
-  #   cli_lambda = boto3.client('lambda', region_name=READER_ZONE)
-  #   lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
-  #   _put_last(f"{MYSQL_SNS__READER__STACK_NAME}__reader_lambda__arn", lambda_details['Configuration']['FunctionArn'])
+  if args['reader']:
+    os.chdir(ROOT_PATH / 'mysql-dynamo' / 'reader')
+    sam['deploy',
+        '--region', READER_ZONE,
+        '--stack-name', MYSQL_DYNAMO__READER__STACK_NAME,
+        '--s3-bucket', READER_S3_BUCKET,
+        '--s3-prefix', f"{MYSQL_DYNAMO__READER__STACK_NAME}",
+        '--force-upload',
+        '--profile', CREDENTIALS_PROFILE,
+        '--role-arn', IAM_CLOUDFORMATION_ADMIN_ROLE_ARN,
+        '--capabilities', 'CAPABILITY_IAM',
+        '--no-confirm-changeset',
+        '--no-fail-on-empty-changeset' # so if no changes this does not exit
+    ] & FG
+    # grab the arn of the deployed lambda
+    cli_cloudformation = boto3.client('cloudformation', region_name=READER_ZONE)
+    stack_deployed_lambda = cli_cloudformation.describe_stack_resource(StackName=MYSQL_DYNAMO__READER__STACK_NAME, LogicalResourceId=MYSQL_DYNAMO__READER__LAMBDA_NAME)['StackResourceDetail']
+    cli_lambda = boto3.client('lambda', region_name=READER_ZONE)
+    lambda_details = cli_lambda.get_function(FunctionName=stack_deployed_lambda['PhysicalResourceId'])
+    _put_last(f"{MYSQL_DYNAMO__READER__STACK_NAME}__reader_lambda__arn", lambda_details['Configuration']['FunctionArn'])
+
 
 #--------------
 # CLEAN
@@ -407,6 +409,7 @@ def clean__mysql_sns(args):
 def clean__mysql_dynamo(args):
   _clean_mysql()
   _clean_dynamo()
+  _clean_sqs()
 
   if args['strong']:
     from plumbum.cmd import aws
@@ -423,7 +426,7 @@ def clean__mysql_dynamo(args):
       print("\t[INFO] Deleting reader stack... ", end='', flush=True)
       aws['cloudformation', 'delete-stack',
           '--region', READER_ZONE,
-          '--stack-name', MYSQL_SNS__READER__STACK_NAME
+          '--stack-name', MYSQL_DYNAMO__READER__STACK_NAME
       ] & FG
       print("Done!")
 
@@ -455,6 +458,22 @@ def run__mysql_sns__invoke(i):
     try:
       response = writer_client.invoke(
         FunctionName=_get_last(f"{MYSQL_SNS__WRITER__STACK_NAME}__writer_lambda__arn"),
+        InvocationType='RequestResponse',
+        Payload=json.dumps(_generate_payload(i)),
+      )
+      response_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+      if response_code == 200:
+        break
+    except Exception as e:
+      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+      exit(-1)
+
+def run__mysql_dynamo__invoke(i):
+  writer_client = boto3.client('lambda', region_name=WRITER_ZONE)
+  while True:
+    try:
+      response = writer_client.invoke(
+        FunctionName=_get_last(f"{MYSQL_DYNAMO__WRITER__STACK_NAME}__writer_lambda__arn"),
         InvocationType='RequestResponse',
         Payload=json.dumps(_generate_payload(i)),
       )
@@ -609,6 +628,10 @@ SQS_EVAL_QUEUE = {
   'url': 'https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval',
   'arn': 'arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval'
 }
+
+# antipode
+DYNAMO_POST_TABLE_NAME='blobs'
+DYNAMO_NOTIFICATIONS_TABLE_NAME='keyvalue'
 
 # mysql-sns deployment vars
 MYSQL_SNS__WRITER__STACK_NAME = 'mysql-sns-writer'
