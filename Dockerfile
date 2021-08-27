@@ -54,6 +54,7 @@ RUN set -ex ;\
         boto3 \
         plumbum \
         tqdm \
+        click \
         ;\
     # make sure nothing is on pip cache folder
     rm -rf ~/.cache/pip/

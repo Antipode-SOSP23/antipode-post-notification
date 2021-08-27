@@ -15,6 +15,7 @@ from plumbum import local
 from plumbum import FG, BG
 import time
 from tqdm import tqdm
+import click
 import pandas as pd
 from pathlib import Path
 # pd.set_option('display.float_format', lambda x: '%.3f' % x)
@@ -424,9 +425,9 @@ def clean__mysql_dynamo(args):
 def run(args):
   app = args.pop('app', None)
 
-  # check if experiment was cleaned
-  if not _get_last('cleaned'):
-    print("[WARN] The experiment was not cleaned before hand! You might gather old results afterwards.")
+  # check if experiment was cleaned and if not we ask the user if he wants to continue
+  if not _get_last('cleaned') and not click.confirm('[WARN] The experiment was not cleaned before hand! You might gather old results afterwards. Do you still want to continue?', default=False):
+    exit(-1)
 
   # update last file with requests info so we gather after
   _put_last('app', app)
