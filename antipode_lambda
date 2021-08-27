@@ -520,39 +520,45 @@ def gather(args):
   print("[INFO] Gater info through SQS... ", flush=True)
   resource_sqs = boto3.resource('sqs', region_name=SQS_EVAL_QUEUE['region'])
   eval_queue = resource_sqs.get_queue_by_name(QueueName=SQS_EVAL_QUEUE['name'])
+
+  # gather results - ideally all but if we cancel tqdm we move on with the ones we have
   results = {}
-  with tqdm(total=num_requests) as pbar:
-    while len(results) < num_requests:
-      # fetch max 10 messages :(
-      messages = eval_queue.receive_messages(MaxNumberOfMessages=10)
-      # sleep if no messages returned from SQS
-      if len(messages) == 0:
-        time.sleep(10)
-        continue
+  try:
+    with tqdm(total=num_requests) as pbar:
+      while len(results) < num_requests:
+        # fetch max 10 messages :(
+        messages = eval_queue.receive_messages(MaxNumberOfMessages=10)
+        # sleep if no messages returned from SQS
+        if len(messages) == 0:
+          time.sleep(10)
+          continue
 
-      for message in messages:
-        # example entry:
-        #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
+        for message in messages:
+          # example entry:
+          #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
 
-        # events might come from Lambda destinations (with responsePayload)
-        # or sent manually inside lambdas
-        item = json.loads(message.body)
-        if 'responsePayload' in item:
-          item = json.loads(item['responsePayload']['body'])
+          # events might come from Lambda destinations (with responsePayload)
+          # or sent manually inside lambdas
+          item = json.loads(message.body)
+          if 'responsePayload' in item:
+            item = json.loads(item['responsePayload']['body'])
 
-        # index by i so we avoid duplicate results
-        results[int(item['i'])] = {
-          'ts_notification_spent': int(item['ts_notification_spent']),
-          'read_post_retries': int(item['read_post_retries']),
-          'ts_read_post_spent': int(item['ts_read_post_spent']),
-          'read_post_key_retries': int(item['read_post_key_retries']),
-          'ts_read_post_key_spent': int(item['ts_read_post_key_spent']),
-          'read_post_blob_retries': int(item['read_post_blob_retries']),
-          'ts_read_post_blob_spent': int(item['ts_read_post_blob_spent']),
-        }
-        message.delete()
-        pbar.update(1)
-  print("[INFO] Done!")
+          # index by i so we avoid duplicate results
+          results[int(item['i'])] = {
+            'ts_notification_spent': int(item['ts_notification_spent']),
+            'read_post_retries': int(item['read_post_retries']),
+            'ts_read_post_spent': int(item['ts_read_post_spent']),
+            'read_post_key_retries': int(item['read_post_key_retries']),
+            'ts_read_post_key_spent': int(item['ts_read_post_key_spent']),
+            'read_post_blob_retries': int(item['read_post_blob_retries']),
+            'ts_read_post_blob_spent': int(item['ts_read_post_blob_spent']),
+          }
+          message.delete()
+          pbar.update(1)
+    print("[INFO] Done!")
+  except KeyboardInterrupt:
+    print(f"[WARN] Skipping remaining results {len(results)}/{num_requests}")
+
 
   print("[INFO] Parsing evaluation ...", end='')
   df = pd.DataFrame(results.values())
@@ -569,9 +575,11 @@ def gather(args):
 
   # save the pandas describe
   with open(info_path, 'w') as f:
+    print(f"[NUMRESULTS] {len(results)}/{num_requests}", file=f)
+    print("", file=f)
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
     print("", file=f)
-    print(f"% inconsistencies: {len(df.query('read_post_retries > 0'))/float(len(df))}", file=f)
+    print(f"[PERINCONSISTENCIES] % inconsistencies: {len(df.query('read_post_retries > 0'))/float(len(df))}", file=f)
     print("", file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
