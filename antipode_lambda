@@ -363,14 +363,12 @@ def clean(args):
   if args['writer'] or args['reader']:
     args['strong'] = True
 
+  print(f"[INFO] Cleaning for '{app}'... ")
+  getattr(sys.modules[__name__], f"clean__{app}")(args)
 
-  try:
-    print(f"[INFO] Cleaning for '{app}'... ")
-    getattr(sys.modules[__name__], f"clean__{app}")(args)
-    print("[INFO] Done!")
-  except KeyboardInterrupt:
-    # if the compose gets interrupted we just continue with the script
-    pass
+  # set flag that the experiment was cleaned
+  _put_last('cleaned', True)
+  print("[INFO] Done!")
 
 def clean__mysql_sns(args):
   _clean_mysql()
@@ -425,6 +423,11 @@ def clean__mysql_dynamo(args):
 #--------------
 def run(args):
   app = args.pop('app', None)
+
+  # check if experiment was cleaned
+  if not _get_last('cleaned'):
+    print("[WARN] The experiment was not cleaned before hand! You might gather old results afterwards.")
+
   # update last file with requests info so we gather after
   _put_last('app', app)
   _put_last('requests', args['requests'])
@@ -437,6 +440,9 @@ def run(args):
       pass
     pool.close()
     pool.join()
+
+    # after running flag that the experiment needs cleaning
+    _put_last('cleaned', False)
   except KeyboardInterrupt:
     # if the compose gets interrupted we just continue with the script
     pass
@@ -598,6 +604,7 @@ AVAILABLE_APPLICATIONS = [
   'mysql-dynamo',
 ]
 CPU_COUNT = mp.cpu_count()
+MIN_NOTIFICATION_LEN = 10
 WRITER_ZONE = 'eu-central-1'
 READER_ZONE = 'us-east-1'
 WRITER_S3_BUCKET = 'antipode-lambda-eu'
