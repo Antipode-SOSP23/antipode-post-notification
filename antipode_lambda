@@ -317,7 +317,38 @@ def _clean_sqs():
   print("Done!")
 
 def _clean_dynamo():
-  print("MISSING")
+  print("\t[INFO] Truncating Dynamo table... ", end='', flush=True)
+  for zone in [WRITER_ZONE, READER_ZONE]:
+    cli_dynamo = boto3.client('dynamodb', region_name=zone)
+    resource_dynamo = boto3.resource('dynamodb', region_name=zone)
+    for table_name in [DYNAMO_POST_TABLE_NAME, DYNAMO_NOTIFICATIONS_TABLE_NAME]:
+      table = resource_dynamo.Table(table_name)
+      # Only way to clean a table in DynamoDB is to go key by key
+
+      # get key attributes name
+      table_key_names = [ key.get("AttributeName") for key in table.key_schema ]
+      # only retrieve the keys for each item in the table (minimize data transfer)
+      expression_projection = ", ".join('#' + key for key in table_key_names)
+      expression_attributes = { '#'+key: key for key in table_key_names }
+      # delete items per page
+      page = table.scan(ProjectionExpression=expression_projection, ExpressionAttributeNames=expression_attributes)
+      with table.batch_writer() as batch:
+        while page["Count"] > 0:
+          # Delete items in batches
+          for item_keys in page["Items"]:
+            batch.delete_item(Key=item_keys)
+          # Fetch the next page
+          if 'LastEvaluatedKey' in page:
+            page = table.scan(ProjectionExpression=expression_projection, ExpressionAttributeNames=expression_attributes, ExclusiveStartKey=page['LastEvaluatedKey'])
+          else:
+            break
+
+      # assert that has 0 items
+      # ItemCount is not updated frequently - no need to assert
+      # table_describe = cli_dynamo.describe_table(TableName=table_name)
+      # assert(table_describe['Table']['ItemCount'] == 0)
+  print("Done!")
+
 
 def clean(args):
   app = args.pop('app', None)
