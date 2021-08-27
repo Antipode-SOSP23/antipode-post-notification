@@ -5,8 +5,9 @@ from pprint import pprint
 import os
 import sys
 import argparse
+import random
+import string
 import multiprocessing as mp
-from multiprocessing import Pool
 import boto3
 import json
 from datetime import datetime
@@ -81,20 +82,8 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 # HELPERS
 #--------------
-generated_keys = []
 def _generate_payload(i):
-  import random
-  import string
-  from datetime import datetime
-
-  while True:
-    key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    if key in generated_keys:
-      continue
-    else:
-      generated_keys.append(key)
-      break
-
+  key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=MIN_NOTIFICATION_LEN - len(str(i))))
   return { "i": i, "key": key, "timestamp": datetime.utcnow().timestamp() }
 
 def _put_last(k,v):
