@@ -1,4 +1,0 @@
-app: mysql_sns
-mysql-sns-reader__reader_lambda__arn: arn:aws:lambda:us-east-1:641424397462:function:mysql-sns-reader-AntipodeLambdaMysqlSnsReader-FEkx8SS1IYjw
-mysql-sns-writer__writer_lambda__arn: arn:aws:lambda:eu-central-1:641424397462:function:mysql-sns-writer-AntipodeLambdaMysqlSnsWriter-NLKdGNSUoj9I
-requests: 32

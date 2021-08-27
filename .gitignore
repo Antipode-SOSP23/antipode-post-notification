@@ -3,3 +3,4 @@ credentials
 **/gather/**
 debug.py
 old-lambdas
+.last.yml
