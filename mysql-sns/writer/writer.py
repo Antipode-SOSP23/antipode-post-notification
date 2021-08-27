@@ -11,8 +11,6 @@ from datetime import datetime
 # AWS SAM Deployment details
 #
 # Region: eu-central-1 (Frankfurt)
-# S3 Bucket: antipode-lambda-eu
-# Stack name: mysql-sns
 #
 # Payload Example:
 # { "i": "1", "key": "AABB11" }
@@ -48,7 +46,7 @@ def lambda_handler(event, context):
       mysql_conn.commit()
 
     # returns OK with the k,v written
-    event['written_at'] = str(datetime.now())
+    event['written_at'] = str(datetime.utcnow())
 
     # write notification to SNS topic
     boto3.client('sns').publish(

@@ -1,11 +1,10 @@
 import json
 import os
+import boto3
 import pymysql
 import pymysql.cursors
 from pprint import pprint
 from datetime import datetime
-import boto3
-import time
 
 
 #---------------
@@ -24,12 +23,47 @@ MYSQL_USER = os.environ.get('MYSQL_USER')
 MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
+SQS_EVAL_QUEUE_URL = os.environ.get('SQS_EVAL_QUEUE_URL')
 
 def lambda_handler(event, context):
+  # event example
+  # {
+  #   'Records': [
+  #     {
+  #       'awsRegion': 'us-east-1',
+  #       'dynamodb': {
+  #         'ApproximateCreationDateTime': 1630018407.0,
+  #         'Keys': {'k': {'S': '1'}},
+  #         'NewImage': {'k': {'S': '1'}, 'v': {'S': 'AABB11'}, 'written_at': {'S': '2021-08-26 23:06:27.735938'}
+  #       },
+  #       'SequenceNumber': '2084710800000000039455343869',
+  #       'SizeBytes': 11,
+  #       'StreamViewType': 'NEW_AND_OLD_IMAGES'},
+  #       'eventID': '7d15fac5ce0ef335a09a2c9d52993256',
+  #       'eventName': 'INSERT',
+  #       'eventSource': 'aws:dynamodb',
+  #       'eventSourceARN': 'arn:aws:dynamodb:us-east-1:641424397462:table/keyvalue/stream/2020-06-15T14:43:13.249',
+  #       'eventVersion': '1.1'
+  #     }
+  #   ]
+  # }
+
   # if we have an event from SNS topic we parse it
   # otherwise we already receiving an event through standard lambda API
   if 'Records' in event:
-    event = json.loads(event['Records'][0]['Sns']['Message'])
+    dynamo_event = event['Records'][0]
+    if dynamo_event['eventName'] == 'INSERT':
+      # pprint(json.dumps(event, default=str))
+      event = {
+        'i': dynamo_event['dynamodb']['NewImage']['k']['S'],
+        'key': dynamo_event['dynamodb']['NewImage']['v']['S'],
+        'written_at': dynamo_event['dynamodb']['NewImage']['written_at']['S']
+      }
+    elif dynamo_event['eventName'] == 'REMOVE':
+      return { 'statusCode': 422, 'body': json.dumps(event, default=str) }
+    else:
+      pprint(event)
+      return { 'statusCode': 422, 'body': json.dumps(event, default=str) }
 
   evaluation = {
     'i': event['i'],
@@ -91,9 +125,13 @@ def lambda_handler(event, context):
         evaluation['ts_read_post_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
         break
 
-  # write evaluation to dynamo
-  # table_conn = boto3.resource('dynamodb', region_name='eu-central-1').Table("antipode-eval")
-  # table_conn.put_item(Item=evaluation)
+  # Due to unknown reasons no events are showing up on SQS when setting up a Lambda destination
+  # hence we do it manually here
+  cli_sqs = boto3.client('sqs')
+  cli_sqs.send_message(
+    QueueUrl=SQS_EVAL_QUEUE_URL,
+    MessageBody=json.dumps(evaluation, default=str),
+  )
 
   return {
     'statusCode': 200,
