@@ -84,7 +84,7 @@ pd.set_option('display.expand_frame_repr', False)
 # HELPERS
 #--------------
 def _generate_payload(i):
-  key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=MIN_NOTIFICATION_LEN - len(str(i))))
+  key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=NOTIFICATION_KEY_LEN - len(str(i)) - 1))
   return { "i": i, "key": key, "timestamp": datetime.utcnow().timestamp() }
 
 def _put_last(k,v):
@@ -286,7 +286,7 @@ def _clean_mysql():
       print(f"[WARN] MySQL error: {e}")
       exit(-1)
 
-    sql = f"CREATE TABLE `{MYSQL_POST_TABLE_NAME}` (k BIGINT, v VARCHAR(8), b LONGBLOB)"
+    sql = f"CREATE TABLE `{MYSQL_POST_TABLE_NAME}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_POST_TABLE_NAME}`"
@@ -294,7 +294,7 @@ def _clean_mysql():
     assert(cursor.fetchone()[0] == 0)
 
     notf_table = 'keyvalue'
-    sql = f"CREATE TABLE `{MYSQL_NOTIFICATIONS_TABLE_NAME}` (k BIGINT, v VARCHAR(8))"
+    sql = f"CREATE TABLE `{MYSQL_NOTIFICATIONS_TABLE_NAME}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}))"
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_NOTIFICATIONS_TABLE_NAME}`"
@@ -605,7 +605,7 @@ AVAILABLE_APPLICATIONS = [
   'mysql-dynamo',
 ]
 CPU_COUNT = mp.cpu_count()
-MIN_NOTIFICATION_LEN = 10
+NOTIFICATION_KEY_LEN = 10
 WRITER_ZONE = 'eu-central-1'
 READER_ZONE = 'us-east-1'
 WRITER_S3_BUCKET = 'antipode-lambda-eu'
@@ -686,8 +686,13 @@ if __name__ == '__main__':
   args = vars(main_parser.parse_args())
   command = args.pop('which')
 
+  # check if the
+  if command == 'run' and len(str(args['requests'])) > NOTIFICATION_KEY_LEN:
+    main_parser.error(f"Maximum allowed key length of {NOTIFICATION_KEY_LEN} - {len(str(args['requests']))} given. Please edit this value.")
+
   # replace hyphens with underscores for function names
   args['app'] = args['app'].replace('-', '_')
 
   # call parser method dynamically
   getattr(sys.modules[__name__], command)(args)
+  print("")

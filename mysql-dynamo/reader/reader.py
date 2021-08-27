@@ -104,7 +104,7 @@ def lambda_handler(event, context):
       if result is None:
         evaluation['read_post_retries'] += 1
         evaluation['read_post_key_retries'] += 1
-        print("\t Retry read key...")
+        print(f"[RETRY] Read 'k' v='{event['key']}' from MySQL")
       else:
         evaluation['ts_read_post_key_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
         break
@@ -120,6 +120,7 @@ def lambda_handler(event, context):
       if result is None:
         evaluation['read_post_retries'] += 1
         evaluation['read_post_blob_retries'] += 1
+        print(f"[RETRY] Read 'b' v='{event['key']}' from MySQL")
       else:
         evaluation['ts_read_post_blob_spent'] = (datetime.utcnow() - ts_read_post_blob_start).total_seconds()
         evaluation['ts_read_post_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
