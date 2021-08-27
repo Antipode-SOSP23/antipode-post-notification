@@ -23,6 +23,7 @@ MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
 SNS_ARN = os.environ.get('SNS_ARN')
+ANTIPODE = bool(int(os.environ.get('ANTIPODE')))
 
 def lambda_handler(event, context):
   try:

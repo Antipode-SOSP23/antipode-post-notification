@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Antipode Lambda - MySQL<>Dynamo - Reader
+Parameters:
+  ANTIPODE:
+    Type: Number
+    Description: Antipode enabled (1) or not (0)
+    Default: 0
 Resources:
   AntipodeLambdaMysqlDynamoReader:
     Type: AWS::Serverless::Function
@@ -13,6 +18,7 @@ Resources:
       Role: arn:aws:iam::641424397462:role/antipode-lambda-admin
       Environment:
         Variables:
+          ANTIPODE: !Ref ANTIPODE
           MYSQL_HOST: antipode-lambda-us.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com
           MYSQL_PORT: 3306
           MYSQL_USER: antipode

@@ -118,6 +118,9 @@ def build(args):
   if not args['writer'] and not args['reader']:
     args['writer'] = args['reader'] = True
 
+  # save if Antipode was enabled or not
+  _put_last(f"antipode_enabled", args['antipode'])
+
   try:
     getattr(sys.modules[__name__], f"build__{app}")(args)
   except KeyboardInterrupt:
@@ -145,6 +148,7 @@ def build__mysql_sns(args):
   if args['writer']:
     os.chdir(ROOT_PATH / 'mysql-sns' / 'writer')
     sam['deploy',
+        '--parameter-overrides', f"ANTIPODE={int(args['antipode'])}",
         '--region', WRITER_ZONE,
         '--stack-name', MYSQL_SNS__WRITER__STACK_NAME,
         '--s3-bucket', WRITER_S3_BUCKET,
@@ -167,6 +171,7 @@ def build__mysql_sns(args):
   if args['reader']:
     os.chdir(ROOT_PATH / 'mysql-sns' / 'reader')
     sam['deploy',
+        '--parameter-overrides', f"ANTIPODE={int(args['antipode'])}",
         '--region', READER_ZONE,
         '--stack-name', MYSQL_SNS__READER__STACK_NAME,
         '--s3-bucket', READER_S3_BUCKET,
@@ -206,6 +211,7 @@ def build__mysql_dynamo(args):
   if args['writer']:
     os.chdir(ROOT_PATH / 'mysql-dynamo' / 'writer')
     sam['deploy',
+        '--parameter-overrides', f"ANTIPODE={int(args['antipode'])}",
         '--region', WRITER_ZONE,
         '--stack-name', MYSQL_DYNAMO__WRITER__STACK_NAME,
         '--s3-bucket', WRITER_S3_BUCKET,
@@ -228,6 +234,7 @@ def build__mysql_dynamo(args):
   if args['reader']:
     os.chdir(ROOT_PATH / 'mysql-dynamo' / 'reader')
     sam['deploy',
+        '--parameter-overrides', f"ANTIPODE={int(args['antipode'])}",
         '--region', READER_ZONE,
         '--stack-name', MYSQL_DYNAMO__READER__STACK_NAME,
         '--s3-bucket', READER_S3_BUCKET,
@@ -576,7 +583,6 @@ def gather(args):
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
     print("", file=f)
     print(f"[PERINCONSISTENCIES] % inconsistencies: {len(df.query('read_post_retries > 0'))/float(len(df))}", file=f)
-    print("", file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
   with open(info_path, 'r') as f:
@@ -665,6 +671,7 @@ if __name__ == '__main__':
 
   # build application
   build_parser = subparsers.add_parser('build', help='Build application')
+  build_parser.add_argument('-a', '--antipode', action='store_true', help="Enables antipode on the lambdas")
   build_parser.add_argument('-w', '--writer', action='store_true', help="Build only the writer")
   build_parser.add_argument('-r', '--reader', action='store_true', help="Build only the reader")
 

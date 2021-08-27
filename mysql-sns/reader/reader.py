@@ -24,6 +24,7 @@ MYSQL_USER = os.environ.get('MYSQL_USER')
 MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
+ANTIPODE = bool(int(os.environ.get('ANTIPODE')))
 
 def lambda_handler(event, context):
   # if we have an event from SNS topic we parse it

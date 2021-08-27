@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 Description: Antipode Lambda - MySQL<>SNS - Reader
+Parameters:
+  ANTIPODE:
+    Type: Number
+    Description: Antipode enabled (1) or not (0)
+    Default: 0
 Resources:
   AntipodeLambdaMysqlSnsReader:
     Type: 'AWS::Serverless::Function'
@@ -25,6 +30,7 @@ Resources:
             Destination: arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval
       Environment:
         Variables:
+          ANTIPODE: !Ref ANTIPODE
           MYSQL_HOST: antipode-lambda-us.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com
           MYSQL_PORT: 3306
           MYSQL_USER: antipode

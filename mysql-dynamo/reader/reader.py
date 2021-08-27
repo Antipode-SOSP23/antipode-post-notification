@@ -24,6 +24,7 @@ MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
 SQS_EVAL_QUEUE_URL = os.environ.get('SQS_EVAL_QUEUE_URL')
+ANTIPODE = bool(int(os.environ.get('ANTIPODE')))
 
 def lambda_handler(event, context):
   # event example

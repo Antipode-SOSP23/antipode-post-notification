@@ -22,6 +22,7 @@ MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ.get('DYNAMO_NOTIFICATIONS_TABLE_NAME')
+ANTIPODE = bool(int(os.environ.get('ANTIPODE')))
 
 def lambda_handler(event, context):
   try:
@@ -45,6 +46,12 @@ def lambda_handler(event, context):
 
     # returns OK with the k,v written
     event['written_at'] = str(datetime.utcnow())
+
+    print(f"ANTIPODE IS {ANTIPODE}")
+    if ANTIPODE:
+      print("MOOOO")
+    else:
+      print("BOOOO")
 
     # write notification to current AWS region
     table_conn = boto3.resource('dynamodb',
