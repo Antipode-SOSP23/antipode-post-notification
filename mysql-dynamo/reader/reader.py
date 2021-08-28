@@ -1,10 +1,10 @@
 import json
 import os
-import boto3
 import pymysql
 import pymysql.cursors
 from pprint import pprint
 from datetime import datetime
+import boto3
 
 
 #---------------

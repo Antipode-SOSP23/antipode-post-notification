@@ -13,7 +13,7 @@ Resources:
       Handler: reader.lambda_handler
       Runtime: python3.7
       CodeUri: .
-      Description: Antipode Lambda - MySQL<>SNS - Reader
+      Description: 'Antipode Lambda - MySQL<>SNS - Reader'
       MemorySize: 128
       Timeout: 900
       Role: arn:aws:iam::641424397462:role/antipode-lambda-admin

@@ -47,11 +47,6 @@ def lambda_handler(event, context):
     # returns OK with the k,v written
     event['written_at'] = str(datetime.utcnow())
 
-    print(f"ANTIPODE IS {ANTIPODE}")
-    if ANTIPODE:
-      print("MOOOO")
-    else:
-      print("BOOOO")
 
     # write notification to current AWS region
     table_conn = boto3.resource('dynamodb',
