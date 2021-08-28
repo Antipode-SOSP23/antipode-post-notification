@@ -27,9 +27,3 @@ Resources:
           MYSQL_POST_TABLE_NAME: blobs
           MYSQL_NOTIFICATIONS_TABLE_NAME: keyvalue
           SNS_ARN: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications
-      # We tried with this but somehow it DID NOT send messages to the topic
-      # EventInvokeConfig:
-      #   DestinationConfig:
-      #     OnSuccess:
-      #       Type: SNS
-      #       Destination: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications

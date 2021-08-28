@@ -23,11 +23,6 @@ Resources:
           Properties:
             Region: eu-central-1
             Topic: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications
-      EventInvokeConfig:
-        DestinationConfig:
-          OnSuccess:
-            Type: SQS
-            Destination: arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval
       Environment:
         Variables:
           ANTIPODE: !Ref ANTIPODE
@@ -38,3 +33,4 @@ Resources:
           MYSQL_DB: antipode
           MYSQL_POST_TABLE_NAME: blobs
           MYSQL_NOTIFICATIONS_TABLE_NAME: keyvalue
+          SQS_EVAL_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval

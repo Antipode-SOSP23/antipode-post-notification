@@ -23,6 +23,7 @@ MYSQL_USER = os.environ.get('MYSQL_USER')
 MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD')
 MYSQL_DB = os.environ.get('MYSQL_DB')
 MYSQL_POST_TABLE_NAME = os.environ.get('MYSQL_POST_TABLE_NAME')
+SQS_EVAL_QUEUE_URL = os.environ.get('SQS_EVAL_QUEUE_URL')
 ANTIPODE = bool(int(os.environ.get('ANTIPODE')))
 
 def lambda_handler(event, context):
@@ -91,6 +92,14 @@ def lambda_handler(event, context):
         evaluation['ts_read_post_blob_spent'] = (datetime.utcnow() - ts_read_post_blob_start).total_seconds()
         evaluation['ts_read_post_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
         break
+
+  # AWS::Serverless templates do not like missing lambda errors
+  # hence we publish the message directly here
+  cli_sqs = boto3.client('sqs')
+  cli_sqs.send_message(
+    QueueUrl=SQS_EVAL_QUEUE_URL,
+    MessageBody=json.dumps(evaluation, default=str),
+  )
 
   return {
     'statusCode': 200,
