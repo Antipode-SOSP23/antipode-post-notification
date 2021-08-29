@@ -47,16 +47,12 @@ def read_post(k, evaluation):
 
   # evaluation keys to fill
   # {
-  #   'read_post_key_retries' : 0,
-  #   'ts_read_post_key_spent': None,
-  #   'read_post_blob_retries' : 0,
-  #   'ts_read_post_blob_spent': None,
   #   'read_post_retries' : 0,
   #   'ts_read_post_spent': None,
   # }
 
   # read post
-  ts_read_post_key_start = datetime.utcnow().timestamp()
+  ts_read_post_start = datetime.utcnow().timestamp()
   while True:
     with mysql_conn.cursor() as cursor:
       sql = f"SELECT `k` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
@@ -66,13 +62,10 @@ def read_post(k, evaluation):
       # current date and time
       if result is None:
         evaluation['read_post_retries'] += 1
-        evaluation['read_post_key_retries'] += 1
         print(f"[RETRY] Read 'k' v='{k}' from MySQL")
       else:
-        evaluation['ts_read_post_key_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_key_start) * 1000)
         break
 
-  ts_read_post_blob_start = datetime.utcnow().timestamp()
   while True:
     with mysql_conn.cursor() as cursor:
       sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
@@ -82,11 +75,9 @@ def read_post(k, evaluation):
       # current date and time
       if result is None:
         evaluation['read_post_retries'] += 1
-        evaluation['read_post_blob_retries'] += 1
         print(f"[RETRY] Read 'b' v='{k}' from MySQL")
       else:
-        evaluation['ts_read_post_blob_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_blob_start) * 1000)
-        evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_key_start) * 1000)
+        evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
         break
 
 def antipode_bridge(id, role):

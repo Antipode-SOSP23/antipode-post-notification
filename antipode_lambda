@@ -609,10 +609,6 @@ def gather(args):
             'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
             'read_post_retries': int(item['read_post_retries']),
             'ts_read_post_spent_ms': int(item['ts_read_post_spent_ms']),
-            'read_post_key_retries': int(item['read_post_key_retries']),
-            'ts_read_post_key_spent_ms': int(item['ts_read_post_key_spent_ms']),
-            'read_post_blob_retries': int(item['read_post_blob_retries']),
-            'ts_read_post_blob_spent_ms': int(item['ts_read_post_blob_spent_ms']),
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms']),
