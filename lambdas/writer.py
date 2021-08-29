@@ -3,12 +3,12 @@ import os
 from datetime import datetime
 import importlib
 
-#---------------
+#--------------
 # AWS SAM Deployment details
 #
 # Lambda payload example:
 # { "i": "1", "key": "AABB11" }
-#---------------
+#--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']

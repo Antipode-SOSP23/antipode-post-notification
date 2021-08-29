@@ -4,14 +4,14 @@ from datetime import datetime
 import importlib
 import boto3
 
-#---------------
+#--------------
 # AWS SAM Deployment details
 #
 # Lambda payload example: (do not forget to invoke the writer first)
 #   { "i": "1", "key": "AABB11", "written_at": 1630247612.943197 }
 # or with antipode:
 #   { "i": "1", "key": "AABB11", "written_at": 1630247612.943197, "cscope": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
-#---------------
+#--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
