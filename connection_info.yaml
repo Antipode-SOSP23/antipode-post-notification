@@ -13,6 +13,7 @@ datastores:
     db: 'antipode'
     post_table_name: 'blobs'
     notifications_table_name: 'keyvalue'
+    antipode_table: 'cscopes'
   dynamo:
     post_table_name: 'blobs'
     notifications_table_name: 'keyvalue'

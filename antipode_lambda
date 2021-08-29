@@ -423,14 +423,21 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    notf_table = 'keyvalue'
     sql = f"CREATE TABLE `{MYSQL_CONN['notifications_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}))"
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['notifications_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
-  print("Done!")
+
+    sql = f"CREATE TABLE `{MYSQL_CONN['antipode_table']}` (cid VARCHAR(32))"
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
+    print("Done!")
 
 def clean__sns():
   # no need to clean sns
