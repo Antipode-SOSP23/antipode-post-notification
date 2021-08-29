@@ -1,17 +1,60 @@
 import boto3
 import os
+from datetime import datetime
 
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
+DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 
-def write_notification(event):
-  reader_region = os.environ['READER_REGION']
+def _dynamo_connection(role):
+  role = role.upper()
+  region = os.environ[f"{role}_REGION"]
 
+  return boto3.resource('dynamodb',
+      region_name=region,
+      endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
+    )
+
+def write_post(i,k):
+  dynamo_conn = _dynamo_connection('writer')
+  post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
+  op = (DYNAMO_POST_TABLE_NAME, 'k', k)
+  post_table.put_item(Item={
+      'k': str(k),
+      'b': os.urandom(350000),
+    })
+  return op
+
+def read_post(k, evaluation):
+  dynamo_conn = _dynamo_connection('writer')
+  post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
+
+  # evaluation keys to fill
+  # {
+  #   'read_post_retries' : 0,
+  #   'ts_read_post_spent_ms': None,
+  # }
+
+  # read key of post
+  ts_read_post_start = datetime.utcnow().timestamp()
+  while True:
+    if 'Item' in post_table.get_item(Key={'k': str(k)}):
+      evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
+      break
+    else:
+      evaluation['read_post_retries'] += 1
+      print(f"[RETRY] Read 'k' v='{k}' from MySQL")
+
+
+def antipode_bridge(id, role):
+  import antipode_dynamo as ant # this file will get copied when deploying
+
+  return ant.AntipodeDynamo(_id=id, conn=_dynamo_connection(role))
+
+def write_notification(event):
+  dynamo_conn = _dynamo_connection('reader')
   # write notification to current AWS region
-  table_conn = boto3.resource('dynamodb',
-      region_name=reader_region,
-      endpoint_url=f"http://dynamodb.{reader_region}.amazonaws.com"
-    ).Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
+  notifications_table = dynamo_conn.Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
   # take parts of the event and turn into dynamo notification
   item = {
     'k': str(event['i']),
@@ -22,7 +65,7 @@ def write_notification(event):
   if ANTIPODE:
     item['cscope']= event['cscope']
   # write the built item
-  table_conn.put_item(Item=item)
+  notifications_table.put_item(Item=item)
 
 def parse_event(event):
   # if we have an event from a source we parse it

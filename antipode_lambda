@@ -671,7 +671,8 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 #   - parse_event(event)
 #--------------
 POST_STORAGE = {
-  'mysql'
+  'mysql',
+  'dynamo'
 }
 NOTIFICATION_STORAGE = [
   'sns',
