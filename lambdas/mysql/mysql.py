@@ -27,13 +27,13 @@ def write_post(i,k):
   try:
     # connect to mysql
     mysql_conn = _mysql_connection('writer')
-    op = (MYSQL_POST_TABLE_NAME, int(i), k)
+    op = (MYSQL_POST_TABLE_NAME, 'v', k)
 
     with mysql_conn.cursor() as cursor:
       # write with 0:AAAA -> blob of 1Mb
       # 1MB is the maximum packet size!!
       sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
-      cursor.execute(sql, (op[1], op[2], os.urandom(1000000)))
+      cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
       mysql_conn.commit()
 
     return op
