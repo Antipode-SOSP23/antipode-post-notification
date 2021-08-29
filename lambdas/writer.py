@@ -19,7 +19,7 @@ def lambda_handler(event, context):
   write_post = getattr(importlib.import_module(POST_STORAGE), 'write_post')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
 
-  write_post(i=event['i'], k=event['key'])
+  op = write_post(i=event['i'], k=event['key'])
   event['written_at'] = str(datetime.utcnow())
   write_notification(event)
 
