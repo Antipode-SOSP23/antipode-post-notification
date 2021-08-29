@@ -19,6 +19,7 @@ class AntipodeMysql:
       self.conn.commit()
 
   def cscope_barrier(self, cscope_id, operations):
+    # read cscope_id
     while True:
       with self.conn.cursor() as cursor:
         sql = f"SELECT 1 FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `cid`=%s"
@@ -26,7 +27,7 @@ class AntipodeMysql:
         if cursor.fetchone() is not None:
           break
 
-    # read post
+    # read post operations
     for op in operations:
       while True:
         with self.conn.cursor() as cursor:

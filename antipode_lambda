@@ -27,6 +27,14 @@ pd.set_option('display.precision', 2)
 pd.set_option('max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
 
+#--------------
+# AWS SQS EVAL QUEUE
+#--------------
+#   1. Go to us-east-1 zone and to the AWS SQS dashboard
+#   2. Create queue with the following parameters:
+#         - Standard type
+#         - name: *SQS_EVAL_QUEUE['name']*
+#--------------
 
 #--------------
 # AWS AURORA GLOBAL CLUSTER
@@ -65,21 +73,20 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 
 #--------------
-# AWS SQS EVAL QUEUE
-#--------------
-#   1. Go to us-east-1 zone and to the AWS SQS dashboard
-#   2. Create queue with the following parameters:
-#         - Standard type
-#         - name: *SQS_EVAL_QUEUE['name']*
-#--------------
-
-#--------------
 # AWS SNS GLOBAL
 #--------------
 #   1. Go to eu-central-1 zone and to the AWS SNS dashboard
 #   2. Go to Topics and create a new one with the following parameters:
 #         - Standard type
 #         - name: antipode-lambda-notifications
+#--------------
+
+#--------------
+# AWS DYNAMO
+#--------------
+#   1. Create tables with ON-DEMAND provisioning and everything else default
+#   2. After created go to dashboard:
+#         - Create a replica on the desired zone
 #--------------
 
 
@@ -455,7 +462,8 @@ def clean__dynamo():
     resource_dynamo = boto3.resource('dynamodb', region_name=zone)
     table_names = [
       DYNAMO_CONN['post_table_name'],
-      DYNAMO_CONN['notifications_table_name']
+      DYNAMO_CONN['notifications_table_name'],
+      DYNAMO_CONN['antipode_table'],
     ]
     for table_name in table_names:
       table = resource_dynamo.Table(table_name)
@@ -547,7 +555,7 @@ def gather(args):
 
   # tag for this gather
   if args['tag'] is None:
-    args['tag'] = input(f"Input any tag for this gather: ")
+    args['tag'] = input('Input any tag for this gather: ')
 
   # load build args
   reader_region = _get_last('reader_region')
@@ -611,7 +619,7 @@ def gather(args):
             'ts_read_post_spent_ms': int(item['ts_read_post_spent_ms']),
           }
           if antipode_enabled:
-            e['antipode_spent_ms'] = int(item['antipode_spent_ms']),
+            e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
 
           results[int(item['i'])] = e
           message.delete()
