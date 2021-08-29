@@ -53,6 +53,7 @@ RUN set -ex ;\
         pymysql \
         boto3 \
         plumbum \
+        jinja2 \
         tqdm \
         click \
         ;\
