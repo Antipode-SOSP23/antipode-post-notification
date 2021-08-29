@@ -2,9 +2,11 @@ import boto3
 import json
 import os
 
+SNS_ARN = os.environ[f"SNS_ARN__{os.environ['WRITER_REGION'].replace('-','_').upper()}__WRITER"]
+
 def write_notification(event):
   boto3.client('sns').publish(
-    TargetArn=os.environ[f"SNS_ARN__{os.environ['WRITER_REGION'].replace('-','_').upper()}__WRITER"],
+    TargetArn=SNS_ARN,
     Message=json.dumps(event)
   )
 
