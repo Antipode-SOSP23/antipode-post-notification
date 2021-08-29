@@ -56,7 +56,7 @@ def read_post(k, evaluation):
   # }
 
   # read post
-  ts_read_post_key_start = datetime.utcnow()
+  ts_read_post_key_start = datetime.utcnow().timestamp()
   while True:
     with mysql_conn.cursor() as cursor:
       sql = f"SELECT `k` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
@@ -69,10 +69,10 @@ def read_post(k, evaluation):
         evaluation['read_post_key_retries'] += 1
         print(f"[RETRY] Read 'k' v='{k}' from MySQL")
       else:
-        evaluation['ts_read_post_key_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
+        evaluation['ts_read_post_key_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_key_start) * 1000)
         break
 
-  ts_read_post_blob_start = datetime.utcnow()
+  ts_read_post_blob_start = datetime.utcnow().timestamp()
   while True:
     with mysql_conn.cursor() as cursor:
       sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
@@ -85,6 +85,6 @@ def read_post(k, evaluation):
         evaluation['read_post_blob_retries'] += 1
         print(f"[RETRY] Read 'b' v='{k}' from MySQL")
       else:
-        evaluation['ts_read_post_blob_spent'] = (datetime.utcnow() - ts_read_post_blob_start).total_seconds()
-        evaluation['ts_read_post_spent'] = (datetime.utcnow() - ts_read_post_key_start).total_seconds()
+        evaluation['ts_read_post_blob_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_blob_start) * 1000)
+        evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_key_start) * 1000)
         break

@@ -28,13 +28,13 @@ def lambda_handler(event, context):
   # init evaluation dict
   evaluation = {
     'i': event['i'],
-    'ts_notification_spent': (datetime.utcnow() - datetime.strptime(event['written_at'], '%Y-%m-%d %H:%M:%S.%f')).total_seconds(),
+    'ts_notification_spent_ms': int((datetime.utcnow().timestamp() - event['written_at']) * 1000),
     'read_post_key_retries' : 0,
-    'ts_read_post_key_spent': None,
+    'ts_read_post_key_spent_ms': None,
     'read_post_blob_retries' : 0,
-    'ts_read_post_blob_spent': None,
+    'ts_read_post_blob_spent_ms': None,
     'read_post_retries' : 0,
-    'ts_read_post_spent': None,
+    'ts_read_post_spent_ms': None,
   }
 
   # read post and fill evaluation
