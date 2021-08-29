@@ -18,9 +18,24 @@ def lambda_handler(event, context):
   # dynamically load
   write_post = getattr(importlib.import_module(POST_STORAGE), 'write_post')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
+  antipode_bridge = getattr(importlib.import_module(POST_STORAGE), 'antipode_bridge')
+
+  if ANTIPODE:
+    import antipode as ant
+    # init service registry
+    SERVICE_REGISTRY = {
+      'post_storage': antipode_bridge('post_storage', 'writer')
+    }
+    cscope = ant.Cscope(SERVICE_REGISTRY)
 
   op = write_post(i=event['i'], k=event['key'])
-  event['written_at'] = str(datetime.utcnow())
+  event['written_at'] = datetime.utcnow().timestamp()
+
+  if ANTIPODE:
+    cscope.append('post_storage', op)
+    cscope.close()
+    event['cscope'] = cscope.to_json()
+
   write_notification(event)
 
   # return the event and the code

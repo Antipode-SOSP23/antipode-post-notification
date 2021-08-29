@@ -88,3 +88,8 @@ def read_post(k, evaluation):
         evaluation['ts_read_post_blob_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_blob_start) * 1000)
         evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_key_start) * 1000)
         break
+
+def antipode_bridge(id, role):
+  import antipode_mysql as ant # this file will get copied when deploying
+
+  return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))

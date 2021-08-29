@@ -2,6 +2,7 @@ import boto3
 import os
 
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
+ANTIPODE = bool(int(os.environ['ANTIPODE']))
 
 def write_notification(event):
   reader_region = os.environ['READER_REGION']
@@ -12,11 +13,16 @@ def write_notification(event):
       endpoint_url=f"http://dynamodb.{reader_region}.amazonaws.com"
     ).Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
   # take parts of the event and turn into dynamo notification
-  table_conn.put_item(Item={
-      'k': str(event['i']),
-      'v': str(event['key']),
-      'written_at': event['written_at']
-    })
+  item = {
+    'k': str(event['i']),
+    'v': str(event['key']),
+    'written_at': str(event['written_at']),
+  }
+  # if antipode is enabled we pass the scope
+  if ANTIPODE:
+    item['cscope']= event['cscope']
+  # write the built item
+  table_conn.put_item(Item=item)
 
 def parse_event(event):
   # if we have an event from a source we parse it
@@ -29,8 +35,10 @@ def parse_event(event):
       event = {
         'i': dynamo_event['dynamodb']['NewImage']['k']['S'],
         'key': dynamo_event['dynamodb']['NewImage']['v']['S'],
-        'written_at': dynamo_event['dynamodb']['NewImage']['written_at']['S']
+        'written_at': float(dynamo_event['dynamodb']['NewImage']['written_at']['S'])
       }
+      if ANTIPODE:
+        event['cscope'] = dynamo_event['dynamodb']['NewImage']['cscope']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:

@@ -224,6 +224,11 @@ def _build_service(role, args):
   with open(deploy_dir / 'requirements.txt', 'w') as outfile:
     outfile.write('\n'.join(set(all_requirements)))
 
+  # copy antipode code if its enabled
+  if args['antipode']:
+    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode.py', deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / f"antipode_{args['post_storage']}.py", deploy_dir)
+
   # figure out deploy params
   region = args[role]
   s3_bucket = CONNECTION_INFO['lambda_s3_buckets'][region]
@@ -538,6 +543,7 @@ def gather(args):
   # load build vars
   post_storage = _get_last('post_storage')
   notification_storage = _get_last('notification_storage')
+  antipode_enabled = _get_last('antipode_enabled')
 
   # tag for this gather
   if args['tag'] is None:
@@ -592,9 +598,6 @@ def gather(args):
           continue
 
         for message in messages:
-          # example entry:
-          #   {'i': Decimal('7'), 'read_post_retries': Decimal('0'), 'ts_read_post_spent': Decimal('161')}
-
           # events might come from Lambda destinations (with responsePayload)
           # or sent manually inside lambdas
           item = json.loads(message.body)
@@ -602,7 +605,7 @@ def gather(args):
             item = json.loads(item['responsePayload']['body'])
 
           # index by i so we avoid duplicate results
-          results[int(item['i'])] = {
+          e = {
             'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
             'read_post_retries': int(item['read_post_retries']),
             'ts_read_post_spent_ms': int(item['ts_read_post_spent_ms']),
@@ -610,8 +613,11 @@ def gather(args):
             'ts_read_post_key_spent_ms': int(item['ts_read_post_key_spent_ms']),
             'read_post_blob_retries': int(item['read_post_blob_retries']),
             'ts_read_post_blob_spent_ms': int(item['ts_read_post_blob_spent_ms']),
-            'antipode_spent_ms': int(item['antipode_spent_ms']),
           }
+          if antipode_enabled:
+            e['antipode_spent_ms'] = int(item['antipode_spent_ms']),
+
+          results[int(item['i'])] = e
           message.delete()
           pbar.update(1)
     print("[INFO] Done!")
