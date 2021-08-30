@@ -43,7 +43,7 @@ def read_post(k, evaluation):
       break
     else:
       evaluation['read_post_retries'] += 1
-      print(f"[RETRY] Read 'k' v='{k}' from MySQL")
+      print(f"[RETRY] Read 'k' v='{k}'")
 
 
 def antipode_bridge(id, role):

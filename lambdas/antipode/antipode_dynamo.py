@@ -1,13 +1,13 @@
 import os
 import boto3
 
-MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE']
+DYNAMO_ANTIPODE_TABLE = os.environ['DYNAMO_ANTIPODE_TABLE']
 
 class AntipodeDynamo:
   def __init__(self, _id, conn):
     self._id = _id
     self.conn = conn
-    self.antipode_table = self.conn.Table(MYSQL_ANTIPODE_TABLE)
+    self.antipode_table = self.conn.Table(DYNAMO_ANTIPODE_TABLE)
 
   def _id(self):
     return self._id

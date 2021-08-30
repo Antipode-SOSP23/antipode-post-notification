@@ -62,7 +62,7 @@ def read_post(k, evaluation):
       # current date and time
       if result is None:
         evaluation['read_post_retries'] += 1
-        print(f"[RETRY] Read 'k' v='{k}' from MySQL")
+        print(f"[RETRY] Read 'k' v='{k}'")
       else:
         break
 
@@ -75,7 +75,7 @@ def read_post(k, evaluation):
       # current date and time
       if result is None:
         evaluation['read_post_retries'] += 1
-        print(f"[RETRY] Read 'b' v='{k}' from MySQL")
+        print(f"[RETRY] Read 'b' v='{k}'")
       else:
         evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
         break
