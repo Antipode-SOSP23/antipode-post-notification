@@ -1,12 +1,13 @@
 import os
 import boto3
+import botocore
 
 S3_ANTIPODE_PATH = os.environ['S3_ANTIPODE_PATH']
 
 class AntipodeS3:
-  def __init__(self, _id, bucket):
+  def __init__(self, _id, conn):
     self._id = _id
-    self.bucket = bucket
+    self.bucket = conn
     self.s3_client = boto3.client('s3')
 
   def _id(self):
@@ -28,12 +29,25 @@ class AntipodeS3:
   def cscope_barrier(self, cscope_id, operations):
     # read cscope_id
     while True:
-      self.s3_client.get_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
-      break
+      try:
+        self.s3_client.get_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
+        break
+      except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+          pass
+        else:
+          raise
+
 
     # read post operations
     for op in operations:
       # op: (BUCKET_NAME, <KEY>)
       while True:
-        self.s3_client.get_object(Bucket=op[0], Key=op[1])
-        break
+        try:
+          self.s3_client.get_object(Bucket=op[0], Key=op[1])
+          break
+        except botocore.exceptions.ClientError as e:
+          if e.response['Error']['Code'] == 'NoSuchKey':
+            pass
+          else:
+            raise
