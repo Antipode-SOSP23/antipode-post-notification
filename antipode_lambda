@@ -100,15 +100,14 @@ def _generate_payload(i):
 def _load_yaml(path):
   import yaml
   with open(path, 'r') as f:
-    return yaml.safe_load(f)
+    return yaml.safe_load(f) or {}
 
 def _put_last(k,v):
   import yaml
+  doc = {}
   # if file exists parse yaml otherwise create empty dict to write to
   if Path(LAST_INFO_FILE).exists():
     doc = _load_yaml(LAST_INFO_FILE)
-  else:
-    doc = {}
   # write new value and save to file
   doc[k] = v
   with open(LAST_INFO_FILE, 'w+') as f:
