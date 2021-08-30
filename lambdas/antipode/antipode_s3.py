@@ -34,6 +34,7 @@ class AntipodeS3:
         break
       except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
+          print(f"[RETRY] Read {self._bucket_key(str(cscope_id))}@{self.bucket}")
           pass
         else:
           raise
@@ -48,6 +49,7 @@ class AntipodeS3:
           break
         except botocore.exceptions.ClientError as e:
           if e.response['Error']['Code'] == 'NoSuchKey':
+            print(f"[RETRY] Read {op[1]}@{op[0]}")
             pass
           else:
             raise
