@@ -519,6 +519,7 @@ def clean__s3():
 
   print("Done!")
 
+
 #--------------
 # RUN
 #--------------
@@ -693,11 +694,11 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 POST_STORAGE = {
   'mysql',
   'dynamo',
-  's3'
+  's3',
 }
 NOTIFICATION_STORAGE = [
   'sns',
-  'dynamo'
+  'dynamo',
 ]
 CONNECTION_INFO = _load_yaml(ROOT_PATH / 'connection_info.yaml')
 REGIONS = {

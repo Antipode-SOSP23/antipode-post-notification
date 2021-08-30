@@ -27,11 +27,11 @@ def read_post(k, evaluation):
   ts_read_post_start = datetime.utcnow().timestamp()
   while True:
     try:
-      s3_client.get_object(Bucket=reader_bucket, Key=str(k))
+      s3_client.head_object(Bucket=reader_bucket, Key=str(k))
       evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
       break
     except botocore.exceptions.ClientError as e:
-      if e.response['Error']['Code'] == 'NoSuchKey':
+      if e.response['Error']['Code'] in ['NoSuchKey','404']:
         print(f"[RETRY] Read 'k' v='{k}'")
         evaluation['read_post_retries'] += 1
         pass

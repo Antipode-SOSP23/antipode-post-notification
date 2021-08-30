@@ -30,10 +30,10 @@ class AntipodeS3:
     # read cscope_id
     while True:
       try:
-        self.s3_client.get_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
+        self.s3_client.head_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
         break
       except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
+        if e.response['Error']['Code'] in ['NoSuchKey','404']:
           print(f"[RETRY] Read {self._bucket_key(str(cscope_id))}@{self.bucket}")
           pass
         else:
@@ -45,10 +45,10 @@ class AntipodeS3:
       # op: (BUCKET_NAME, <KEY>)
       while True:
         try:
-          self.s3_client.get_object(Bucket=op[0], Key=op[1])
+          self.s3_client.head_object(Bucket=op[0], Key=op[1])
           break
         except botocore.exceptions.ClientError as e:
-          if e.response['Error']['Code'] == 'NoSuchKey':
+          if e.response['Error']['Code'] in ['NoSuchKey','404']:
             print(f"[RETRY] Read {op[1]}@{op[0]}")
             pass
           else:
