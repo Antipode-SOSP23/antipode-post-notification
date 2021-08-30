@@ -82,6 +82,15 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 
 #--------------
+# AWS S3 GLOBAL
+#--------------
+#   1. Go AWS dashboard and create 2 buckets within 2 zones
+#         - Enabled versioning
+#   2. Go the "primary" bucket and create replication to the 2nd bucket
+#         - Use the antipode-lambda-s3-admin IAM role
+#--------------
+
+#--------------
 # AWS DYNAMO
 #--------------
 #   1. Create tables with ON-DEMAND provisioning and everything else default
@@ -330,6 +339,7 @@ def reader_event_source__dynamo():
 
   return textwrap.dedent(template_generated).strip()
 
+
 #--------------
 # CLEAN
 #--------------
@@ -497,6 +507,17 @@ def clean__dynamo():
       # assert(table_describe['Table']['ItemCount'] == 0)
   print("Done!")
 
+def clean__s3():
+  print("\t[INFO] Cleaning S3 buckets... ", end='', flush=True)
+  s3_resource = boto3.resource('s3')
+  S3_CONN = CONNECTION_INFO['datastores']['s3']
+
+  for role in ['reader', 'writer']:
+    region = _get_last(f"{role}_region")
+    bucket = S3_CONN[f"bucket__{region}__{role}"]
+    s3_resource.Bucket(bucket).objects.all().delete()
+
+  print("Done!")
 
 #--------------
 # RUN
@@ -671,7 +692,8 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 #--------------
 POST_STORAGE = {
   'mysql',
-  'dynamo'
+  'dynamo',
+  's3'
 }
 NOTIFICATION_STORAGE = [
   'sns',

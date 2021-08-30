@@ -21,6 +21,11 @@ datastores:
     notifications_table_stream_arn__us-east-1: 'arn:aws:dynamodb:us-east-1:641424397462:table/keyvalue/stream/2020-06-15T14:43:13.249'
   sns:
     arn__eu-central-1__writer: 'arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications'
+  s3:
+    bucket__eu-central-1__writer: 'antipode-lambda-posts-eu'
+    bucket__us-east-1__reader: 'antipode-lambda-posts-us'
+    antipode_path: 'antipode'
+
 sqs_eval:
   name: 'antipode-lambda-eval'
   url__us-east-1: 'https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval'
