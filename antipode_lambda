@@ -637,17 +637,17 @@ def clean__mq():
 # RUN
 #--------------
 def _writer_invoke(args):
-  writer_region, writer_lambda_arn, i = args
+  mode, writer_region, writer_lambda_arn, i = args
   writer_client = boto3.client('lambda', region_name=writer_region)
   while True:
     try:
       response = writer_client.invoke(
         FunctionName=writer_lambda_arn,
-        InvocationType='RequestResponse',
+        InvocationType=mode,
         Payload=json.dumps(_generate_payload(i)),
       )
-      response_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
-      if response_code == 200:
+      # exists if we get a 200 or 202 (for async) return code
+      if response['ResponseMetadata']['HTTPStatusCode'] in [200, 202]:
         break
     except Exception as e:
       print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
@@ -663,11 +663,12 @@ def run(args):
   notification_storage = _get_last('notification_storage')
   writer_region = _get_last(f"writer_region")
   writer_lambda_arn = _get_last(f"writer__lambda__arn")
+  mode = 'Event' if args['async'] else 'RequestResponse'
 
   print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
   # invoke writer in paralell
   pool = mp.Pool(processes=CPU_COUNT)
-  for _ in tqdm(pool.imap_unordered(_writer_invoke, [ (writer_region, writer_lambda_arn, i) for i in range(args['requests']) ] ), total=args['requests']):
+  for _ in tqdm(pool.imap_unordered(_writer_invoke, [ (mode, writer_region, writer_lambda_arn, i) for i in range(args['requests']) ] ), total=args['requests']):
     pass
   pool.close()
   pool.join()
@@ -846,6 +847,8 @@ if __name__ == '__main__':
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
   run_parser.add_argument('-r', '--requests', type=int, default=1, help="Number of requests to run")
+  # ref: https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html
+  run_parser.add_argument('-a', '--async', action='store_true', help="Switches lambda invocation to async")
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
