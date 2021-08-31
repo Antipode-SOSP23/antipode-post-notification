@@ -6,9 +6,9 @@ SNS_ARN = os.environ[f"SNS_ARN__{os.environ['WRITER_REGION'].replace('-','_').up
 
 def write_notification(event):
   boto3.client('sns').publish(
-    TargetArn=SNS_ARN,
-    Message=json.dumps(event)
-  )
+      TargetArn=SNS_ARN,
+      Message=json.dumps(event)
+    )
 
 def parse_event(event):
   # if we have an event from a source we parse it

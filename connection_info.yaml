@@ -25,6 +25,17 @@ datastores:
     bucket__eu-central-1__writer: 'antipode-lambda-posts-eu'
     bucket__us-east-1__reader: 'antipode-lambda-posts-us'
     antipode_path: 'antipode'
+  mq:
+    name__eu-central-1: antipode-lambda-notifications-eu
+    arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:antipode-lambda-eu:b-041e83c9-418c-462b-8f12-fa3be1d870cb
+    stomp_host__eu-central-1: b-041e83c9-418c-462b-8f12-fa3be1d870cb-1.mq.eu-central-1.amazonaws.com
+    stomp_port__eu-central-1: 61614
+    name__us-east-1: antipode-lambda-notifications-us
+    arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:antipode-lambda-us:b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9
+    user: antipode
+    password: antipode1antipode
+    secretmanager_arn: 'arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa'
+    notification_queue: antipode-notifications
 
 sqs_eval:
   name: 'antipode-lambda-eval'

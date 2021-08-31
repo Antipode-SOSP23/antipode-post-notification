@@ -98,6 +98,81 @@ pd.set_option('display.expand_frame_repr', False)
 #         - Create a replica on the desired zone
 #--------------
 
+#--------------
+# AWS MQ
+#--------------
+#   1. You will have to create a VCP, a Subnet, an Internet Gateway and a routing rules.
+#      Check the following material for more details:
+#         - https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
+#         - https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
+#         - https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
+#     Some side notes:
+#         - Security group:
+#               - To ease up allow both ALL IPV4 ADDRESSES and ALL IPV6 ADDRESSES in both INBOUND and OUTBOUND
+#               - Add the security group to the inbound rules of the security group
+#         - Routing rules:
+#               - Do not forget to add the Internet Gateway to the routing rules
+#               - Allong with the peering network configurations
+#
+#   2. Go the secondary zone US and create a broker with the following configuration:
+#         - Engine: Apache ActiveMQ
+#         - Single-instance broker
+#         - Durability optimized
+#         - Broker name: antipode-lambda-notifications-us
+#         - Username: antipode
+#         - Password: antipode1antipode
+#         - Broker engine: 5.16.2
+#         - Select default configuration
+#         - Select pre-created VPC config: antipode-vpc
+#         - Select pre-created Security group: antipode-vpc-sg
+#         - Disable maintenance
+#
+#   3. Go to EU zone and create a CONFIGURATION
+#         - Configuration name: antipode-lambda-mq-eu-config
+#         - Broker version: 5.16.2
+#         - Simple verification
+#         - Edit the configuration and past the following XML
+#             - ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/network-of-brokers.html#how-to-configure-cross-region
+#             - NOTE: change the ssl uri to the one from US broker
+#
+# <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+# <broker schedulePeriodForDestinationPurge="10000" xmlns="http://activemq.apache.org/schema/core">
+#   <destinationPolicy>
+#     <policyMap>
+#       <policyEntries>
+#         <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" topic="&gt;">
+#           <pendingMessageLimitStrategy>
+#             <constantPendingMessageLimitStrategy limit="1000"/>
+#           </pendingMessageLimitStrategy>
+#         </policyEntry>
+#         <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" queue="&gt;"/>
+#       </policyEntries>
+#     </policyMap>
+#   </destinationPolicy>
+#   <plugins/>
+#   <networkConnectors>
+#     <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+#   </networkConnectors>
+# </broker>
+#
+#   4. Now create a Broker in the primary zone EU with the following configuration:
+#         - Engine: Apache ActiveMQ
+#         - Single-instance broker
+#         - Durability optimized
+#         - Broker name: antipode-lambda-notifications-us
+#         - Username: antipode
+#         - Password: antipode1antipode
+#         - Broker engine: 5.16.2
+#         - Select custom configuration: antipode-lambda-mq-eu-config
+#         - Select the latest revision
+#         - Select pre-created VPC config: antipode-vpc
+#         - Select pre-created Security group: antipode-vpc-sg
+#         - Disable maintenance
+#
+#   5. Create a secret for MQ lambda access on the US region:
+#       aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}'
+#--------------
+
 
 #--------------
 # HELPERS
@@ -252,7 +327,11 @@ def _build_service(role, args):
 
   # Due to bug with SSL we comment this
   # sam['validate', '--region', region] & FG
-  sam['build'] & FG
+
+  # DUE TO THIS BUG WE HAVE TO USE THIS --use-container FLAG -.-
+  # https://github.com/aws/aws-lambda-builders/issues/229
+  sam['build', '--use-container'] & FG
+
   sam['deploy',
       '--region', region,
       '--stack-name', stack_name,
@@ -335,6 +414,37 @@ def reader_event_source__dynamo():
   """
   template_generated = Environment().from_string(template).render({
     'notifications_table_stream_arn': stream_arn,
+  })
+
+  return textwrap.dedent(template_generated).strip()
+
+def reader_event_source__mq():
+  from jinja2 import Environment
+  import textwrap
+
+  # each region has a different stream for the notification table
+  reader_region = _get_last(f"reader_region")
+  broker_arn = CONNECTION_INFO['datastores']['mq'][f"arn__{reader_region}"]
+  queue = CONNECTION_INFO['datastores']['mq']['notification_queue']
+  secretmanager_arn = CONNECTION_INFO['datastores']['mq']['secretmanager_arn']
+
+  template = """
+    Events:
+      MQEvent:
+        Type: MQ
+        Properties:
+          Broker: {{ reader_broker_arn }}
+          Queues:
+            - {{ notifications_queue }}
+          SourceAccessConfigurations:
+            - Type: BASIC_AUTH
+              URI: {{ secretmanager_arn }}
+          BatchSize: 1
+  """
+  template_generated = Environment().from_string(template).render({
+    'reader_broker_arn': broker_arn,
+    'notifications_queue': queue,
+    'secretmanager_arn': secretmanager_arn,
   })
 
   return textwrap.dedent(template_generated).strip()
@@ -519,6 +629,9 @@ def clean__s3():
 
   print("Done!")
 
+def clean__mq():
+  # nothing to do
+  None
 
 #--------------
 # RUN
@@ -655,7 +768,7 @@ def gather(args):
 
   # generate path to save the results
   gather_path = ROOT_PATH / 'gather' / f"{post_storage}-{notification_storage}"  / f"{args['tag']}-{time.strftime('%Y%m%d%H%M%S')}"
-  os.makedirs(gather_path, exist_ok=True)
+  os.makedirs(gather_path, mode=0o777, exist_ok=True)
   csv_path = gather_path / 'traces.csv'
   info_path = gather_path / 'traces.info'
 
@@ -691,14 +804,15 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 #   - write_notification(event)
 #   - parse_event(event)
 #--------------
-POST_STORAGE = {
+POST_STORAGE = [
   'mysql',
   'dynamo',
   's3',
-}
+]
 NOTIFICATION_STORAGE = [
   'sns',
   'dynamo',
+  'mq',
 ]
 CONNECTION_INFO = _load_yaml(ROOT_PATH / 'connection_info.yaml')
 REGIONS = {
