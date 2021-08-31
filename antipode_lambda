@@ -12,14 +12,13 @@ import multiprocessing as mp
 import boto3
 import json
 from datetime import datetime
-from plumbum import local
 from plumbum import FG, BG
 import time
 from tqdm import tqdm
 import click
 import pandas as pd
 from pathlib import Path
-from shutil import copyfile
+import shutil
 
 # pd.set_option('display.float_format', lambda x: '%.3f' % x)
 pd.set_option('display.html.table_schema', True)
@@ -179,7 +178,11 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 def _generate_payload(i):
   key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=NOTIFICATION_KEY_LEN - len(str(i)) - 1))
-  return { "i": i, "key": key, "timestamp": datetime.utcnow().timestamp() }
+  return {
+      'i': i,
+      'key': key,
+      'sent_at': datetime.utcnow().timestamp()
+    }
 
 def _load_yaml(path):
   import yaml
@@ -640,14 +643,18 @@ def clean__mq():
 # RUN
 #--------------
 def _writer_invoke(args):
-  mode, writer_region, writer_lambda_arn, i = args
+  mode, writer_region, writer_lambda_arn, latencies, i = args
   writer_client = boto3.client('lambda', region_name=writer_region)
   try:
     response = writer_client.invoke(
-      FunctionName=writer_lambda_arn,
-      InvocationType=mode,
-      Payload=json.dumps(_generate_payload(i)),
-    )
+        FunctionName=writer_lambda_arn,
+        InvocationType=mode,
+        Payload=json.dumps(_generate_payload(i)),
+      )
+
+    # save the time which we got a reply from
+    latencies[i] = datetime.utcnow().timestamp()
+
     # exists if we get a 200 or 202 (for async) return code
     status_code = response['ResponseMetadata']['HTTPStatusCode']
 
@@ -656,14 +663,10 @@ def _writer_invoke(args):
       status_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
 
     # now we parse the responses
-    if status_code == 202:
-      # async invocation nothing we can do unless return
-      return
-    elif status_code == 200:
-      # request-response invocation - parse return frmo lambda
+    if status_code == 200 or status_code == 202:
       return
     else:
-      raise Exception(f"Wrong Lambda return code: {status_code}")
+      raise Exception(f"Unknown Lambda return code: {status_code}")
   except Exception as e:
     print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
     exit(-1)
@@ -680,15 +683,24 @@ def run(args):
   writer_lambda_arn = _get_last(f"writer__lambda__arn")
   mode = 'Event' if args['async'] else 'RequestResponse'
 
-  print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
-  # invoke writer in paralell
-  pool = mp.Pool(processes=CPU_COUNT)
-  for _ in tqdm(pool.imap_unordered(_writer_invoke, [ (mode, writer_region, writer_lambda_arn, i) for i in range(args['requests']) ] ), total=args['requests']):
-    pass
-  pool.close()
-  pool.join()
+  with mp.Manager() as manager:
+    # dict for requests latencies
+    latencies = manager.dict()
 
-  # set run flags
+    # build args for the invoke -- KEEP THE ORDER OF THE ARGUMENTS or adjust in the invoke method
+    invoke_args_range = [ (mode, writer_region, writer_lambda_arn, latencies, i) for i in range(args['requests']) ]
+
+    print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
+    # invoke writer in paralell
+    pool = mp.Pool(processes=CPU_COUNT)
+    for _ in tqdm(pool.imap_unordered(_writer_invoke,  invoke_args_range), total=args['requests']):
+      pass
+    pool.close()
+    pool.join()
+
+    # save in last the latencies for each request
+    _put_last('latencies', dict(latencies))
+
   _put_last('cleaned', False)
   _put_last('requests', args['requests'])
   print("Done!")
@@ -714,8 +726,13 @@ def gather(args):
 
   cli_sqs = boto3.client('sqs', region_name=reader_region)
 
-  print("[INFO] Waiting for all messages to arrive at eval queue... ", flush=True)
   num_requests = _get_last('requests')
+  latencies = _get_last('latencies')
+  if num_requests != len(latencies):
+    print("[ERROR] Mismatch between number of requests and number of available latencies!")
+    exit(-1)
+
+  print("[INFO] Waiting for all messages to arrive at eval queue... ", flush=True)
   num_messages = 0
   try:
     with tqdm(total=num_requests) as pbar:
@@ -767,6 +784,10 @@ def gather(args):
             'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
             'read_post_retries': int(item['read_post_retries']),
             'ts_read_post_spent_ms': int(item['ts_read_post_spent_ms']),
+            #
+            'post_read_at': float(item['post_read_at']),
+            'sent_at': float(item['sent_at']),
+            'reply_at': float(latencies[int(item['i'])]),
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
@@ -778,6 +799,20 @@ def gather(args):
   except KeyboardInterrupt:
     print(f"[WARN] Skipping remaining results {len(results)}/{num_requests}")
 
+  # now we compute date over the global results and tidy up dict for dataframe
+  eval_values = results.values()
+  first_client_sent = min(eval_values, key=lambda k: k['sent_at'])['sent_at']
+  last_client_replied = max(eval_values, key=lambda k: k['reply_at'])['reply_at']
+  latest_post_read = max(eval_values, key=lambda k: k['post_read_at'])['post_read_at']
+
+  # for each entry in dict we compute results and delete keys no longer needed
+  for _,r in results.items():
+    r['latency_ms'] = int((r['reply_at'] - r['sent_at']) * 1000)
+    r['visibility_latency_ms'] = int((r['sent_at'] - r['post_read_at']) * 1000)
+    # delete no longer needed keys
+    del r['sent_at']
+    del r['reply_at']
+    del r['post_read_at']
 
   print("[INFO] Parsing evaluation ...", end='')
   df = pd.DataFrame(results.values())
@@ -792,13 +827,24 @@ def gather(args):
   df.to_csv(csv_path, sep=';', mode='w')
   print(f"[INFO] Save '{csv_path}'")
 
+  # figure out the throughput
+  num_results = len(results)
+  # from sent_at@i=0 to sent_at@i=0
+  time_spent_by_client = last_client_replied - first_client_sent
+
+  # values that we will write in the info file as tags for later parsing
+  eval_tags = {
+    'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
+    '%_INCONSISTENCIES': len(df.query('read_post_retries > 0')) / float(len(df)),
+    'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
+  }
+
   # save the pandas describe
   with open(info_path, 'w') as f:
-    print(f"[NUMRESULTS] {len(results)}/{_get_last('requests')}", file=f)
+    for tag,v in eval_tags.items():
+      print(f"[{tag}] {v}", file=f)
     print("", file=f)
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
-    print("", file=f)
-    print(f"[PERINCONSISTENCIES] % inconsistencies: {len(df.query('read_post_retries > 0'))/float(len(df))}", file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
   with open(info_path, 'r') as f:
@@ -858,7 +904,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
-  build_parser.add_argument('--delay', type=int, default=0, help="Apply ms delay before writing notification")
+  build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
@@ -880,9 +926,10 @@ if __name__ == '__main__':
   args = vars(main_parser.parse_args())
   command = args.pop('which')
 
-  # check if the
-  if command == 'run' and len(str(args['requests'])) > NOTIFICATION_KEY_LEN:
-    main_parser.error(f"Maximum allowed key length of {NOTIFICATION_KEY_LEN} - {len(str(args['requests']))} given. Please edit this value.")
+  if command == 'run':
+    # check if the number of requests is bigger than the range of notification keys available
+    if len(str(args['requests'])) > NOTIFICATION_KEY_LEN:
+      main_parser.error(f"Maximum allowed key length of {NOTIFICATION_KEY_LEN} - {len(str(args['requests']))} given. Please edit this value.")
 
   # call parser method dynamically
   getattr(sys.modules[__name__], command)(args)

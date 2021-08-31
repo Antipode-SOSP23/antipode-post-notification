@@ -24,6 +24,8 @@ def lambda_handler(event, context):
   read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
   antipode_bridge = getattr(importlib.import_module(POST_STORAGE), 'antipode_bridge')
 
+  received_at = datetime.utcnow().timestamp()
+
   # parse event according to the source notification storage
   status_code, event = parse_event(event)
   if status_code != 200:
@@ -32,7 +34,8 @@ def lambda_handler(event, context):
   # init evaluation dict
   evaluation = {
     'i': event['i'],
-    'ts_notification_spent_ms': int((datetime.utcnow().timestamp() - event['written_at']) * 1000),
+    'sent_at': event['sent_at'],
+    'ts_notification_spent_ms': int((received_at - event['written_at']) * 1000),
     'read_post_retries' : 0,
     'ts_read_post_spent_ms': None,
     'antipode_spent_ms': None,
@@ -56,6 +59,8 @@ def lambda_handler(event, context):
 
   # read post and fill evaluation
   read_post(event['key'], evaluation)
+
+  evaluation['post_read_at'] = datetime.utcnow().timestamp()
 
   # write evaluation to SQS queue
   cli_sqs = boto3.client('sqs')
