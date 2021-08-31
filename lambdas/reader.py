@@ -16,6 +16,7 @@ import boto3
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
   # dynamically load

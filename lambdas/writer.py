@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+import time
 import importlib
 
 #--------------
@@ -13,6 +14,7 @@ import importlib
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
   # dynamically load
@@ -35,6 +37,9 @@ def lambda_handler(event, context):
     cscope.append('post_storage', op)
     cscope.close()
     event['cscope'] = cscope.to_json()
+
+  if DELAY_MS > 0:
+    time.sleep(DELAY_MS / 1000.0)
 
   write_notification(event)
 

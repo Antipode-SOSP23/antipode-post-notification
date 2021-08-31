@@ -275,6 +275,7 @@ def _build_service(role, args):
               WRITER_REGION: {{ writer_region }}
               READER_REGION: {{ reader_region }}
               ANTIPODE: {{ antipode_enabled }}
+              DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
               {% endfor %}
@@ -287,6 +288,7 @@ def _build_service(role, args):
     'writer_region': args['writer'],
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
+    'delay_ms': args['delay'],
     # each notification storage has a different event source for the reader lambda
     'reader_event_source': getattr(sys.modules[__name__], f"reader_event_source__{args['notification_storage']}")(),
     # we pass everything and leave for lambda implementation to decide what and how to use
@@ -633,6 +635,7 @@ def clean__mq():
   # nothing to do
   None
 
+
 #--------------
 # RUN
 #--------------
@@ -855,6 +858,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
+  build_parser.add_argument('--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
