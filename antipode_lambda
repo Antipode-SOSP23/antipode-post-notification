@@ -639,19 +639,31 @@ def clean__mq():
 def _writer_invoke(args):
   mode, writer_region, writer_lambda_arn, i = args
   writer_client = boto3.client('lambda', region_name=writer_region)
-  while True:
-    try:
-      response = writer_client.invoke(
-        FunctionName=writer_lambda_arn,
-        InvocationType=mode,
-        Payload=json.dumps(_generate_payload(i)),
-      )
-      # exists if we get a 200 or 202 (for async) return code
-      if response['ResponseMetadata']['HTTPStatusCode'] in [200, 202]:
-        break
-    except Exception as e:
-      print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
-      exit(-1)
+  try:
+    response = writer_client.invoke(
+      FunctionName=writer_lambda_arn,
+      InvocationType=mode,
+      Payload=json.dumps(_generate_payload(i)),
+    )
+    # exists if we get a 200 or 202 (for async) return code
+    status_code = response['ResponseMetadata']['HTTPStatusCode']
+
+    # replace status_code with the one frmo within the lambda
+    if status_code == 200:
+      status_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+
+    # now we parse the responses
+    if status_code == 202:
+      # async invocation nothing we can do unless return
+      return
+    elif status_code == 200:
+      # request-response invocation - parse return frmo lambda
+      return
+    else:
+      raise Exception(f"Wrong Lambda return code: {status_code}")
+  except Exception as e:
+    print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
+    exit(-1)
 
 def run(args):
   # check if experiment was cleaned and if not we ask the user if he wants to continue
