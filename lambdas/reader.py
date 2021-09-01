@@ -8,9 +8,9 @@ import boto3
 # AWS SAM Deployment details
 #
 # Lambda payload example: (do not forget to invoke the writer first)
-#   { "i": "1", "key": "AABB11", "written_at": 1630247612.943197 }
+#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197 }
 # or with antipode:
-#   { "i": "1", "key": "AABB11", "written_at": 1630247612.943197, "cscope": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
+#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197, "cscope": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
 #--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']
@@ -35,7 +35,7 @@ def lambda_handler(event, context):
   evaluation = {
     'i': event['i'],
     'sent_at': event['sent_at'],
-    'ts_notification_spent_ms': int((received_at - event['written_at']) * 1000),
+    'ts_notification_spent_ms': int((received_at - event['sent_at']) * 1000),
     'read_post_retries' : 0,
     'ts_read_post_spent_ms': None,
     'antipode_spent_ms': None,
@@ -59,7 +59,6 @@ def lambda_handler(event, context):
 
   # read post and fill evaluation
   read_post(event['key'], evaluation)
-
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
 
   # write evaluation to SQS queue

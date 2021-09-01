@@ -31,7 +31,7 @@ def lambda_handler(event, context):
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
   op = write_post(i=event['i'], k=event['key'])
-  event['written_at'] = datetime.utcnow().timestamp()
+  event['sent_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:
     cscope.append('post_storage', op)
