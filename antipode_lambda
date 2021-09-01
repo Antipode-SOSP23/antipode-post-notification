@@ -269,7 +269,7 @@ def _build_service(role, args):
           Description: 'Antipode Lambda - {{ post_storage }}<>{{ notification_storage }} - {{ role }}'
           MemorySize: 128
           Timeout: 900
-          Role: arn:aws:iam::641424397462:role/antipode-lambda-admin
+          Role: {{ iam_lambda_admin_role_arn }}
           {% if role == 'reader' %}{{ reader_event_source | indent(10, False) }}{% endif %}
           Environment:
             Variables:
@@ -286,6 +286,7 @@ def _build_service(role, args):
   template_generated = Environment().from_string(template).render({
     'role': role,
     'lambda_name': lambda_name,
+    'iam_lambda_admin_role_arn': CONNECTION_INFO['iam_lambda_admin_role_arn'],
     'post_storage': args['post_storage'],
     'notification_storage': args['notification_storage'],
     'writer_region': args['writer'],
@@ -326,7 +327,7 @@ def _build_service(role, args):
 
   # figure out deploy params
   region = args[role]
-  s3_bucket = CONNECTION_INFO['lambda_s3_buckets'][region]
+  s3_bucket = CONNECTION_INFO['lambda']['s3_buckets'][region]
   stack_name = app_args[role]['stack_name']
   lambda_name = app_args[role]['lambda_name']
 
