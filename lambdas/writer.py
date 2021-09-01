@@ -8,7 +8,7 @@ import importlib
 # AWS SAM Deployment details
 #
 # Lambda payload example:
-# { "i": "1", "key": "AABB11" }
+# { "i": "1", "key": "AABB11", "sent_at": 1630247610.943197 }
 #--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']

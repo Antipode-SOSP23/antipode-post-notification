@@ -5,7 +5,7 @@ import os
 SNS_ARN = os.environ[f"SNS_ARN__{os.environ['WRITER_REGION'].replace('-','_').upper()}__WRITER"]
 
 def write_notification(event):
-  boto3.client('sns').publish(
+  boto3.client('sns', region_name=os.environ['WRITER_REGION']).publish(
       TargetArn=SNS_ARN,
       Message=json.dumps(event)
     )

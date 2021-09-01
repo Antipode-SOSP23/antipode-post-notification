@@ -3,7 +3,7 @@ import json
 import os
 
 MQ_HOST = os.environ[f"MQ_STOMP_HOST__{os.environ['WRITER_REGION'].replace('-','_').upper()}"]
-MQ_PORT = os.environ[f"MQ_STOMP_PORT__{os.environ['WRITER_REGION'].replace('-','_').upper()}"]
+MQ_PORT = os.environ['MQ_STOMP_PORT']
 MQ_USER = os.environ['MQ_USER']
 MQ_PASSWORD = os.environ['MQ_PASSWORD']
 MQ_NOTIFICATION_QUEUE = os.environ['MQ_NOTIFICATION_QUEUE']

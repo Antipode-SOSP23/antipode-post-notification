@@ -45,7 +45,6 @@ def read_post(k, evaluation):
       evaluation['read_post_retries'] += 1
       print(f"[RETRY] Read 'k' v='{k}'")
 
-
 def antipode_bridge(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying
 
