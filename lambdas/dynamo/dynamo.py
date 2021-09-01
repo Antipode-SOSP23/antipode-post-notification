@@ -6,17 +6,15 @@ DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
 DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 
-def _dynamo_connection(role):
-  role = role.upper()
-  region = os.environ[f"{role}_REGION"]
-
+def _conn(role):
+  region = os.environ[f"{role.upper()}_REGION"]
   return boto3.resource('dynamodb',
       region_name=region,
       endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
     )
 
 def write_post(i,k):
-  dynamo_conn = _dynamo_connection('writer')
+  dynamo_conn = _conn('writer')
   post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
   op = (DYNAMO_POST_TABLE_NAME, 'k', k)
   post_table.put_item(Item={
@@ -26,7 +24,7 @@ def write_post(i,k):
   return op
 
 def read_post(k, evaluation):
-  dynamo_conn = _dynamo_connection('writer')
+  dynamo_conn = _conn('reader')
   post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
 
   # evaluation keys to fill
@@ -48,10 +46,10 @@ def read_post(k, evaluation):
 def antipode_bridge(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying
 
-  return ant.AntipodeDynamo(_id=id, conn=_dynamo_connection(role))
+  return ant.AntipodeDynamo(_id=id, conn=_conn(role))
 
 def write_notification(event):
-  dynamo_conn = _dynamo_connection('reader')
+  dynamo_conn = _conn('writer')
   # write notification to current AWS region
   notifications_table = dynamo_conn.Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
   # take parts of the event and turn into dynamo notification
