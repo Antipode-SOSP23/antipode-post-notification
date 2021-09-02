@@ -2,19 +2,26 @@ import stomp
 import json
 import os
 
-MQ_HOST = os.environ[f"MQ_STOMP_HOST__{os.environ['WRITER_REGION'].replace('-','_').upper()}"]
 MQ_PORT = os.environ['MQ_STOMP_PORT']
 MQ_USER = os.environ['MQ_USER']
 MQ_PASSWORD = os.environ['MQ_PASSWORD']
 MQ_NOTIFICATION_QUEUE = os.environ['MQ_NOTIFICATION_QUEUE']
 
+def _conn(role):
+  role_region = os.environ[f"{role.upper()}_REGION"]
+  role_host = os.environ[f"MQ_STOMP_HOST__{role_region.replace('-','_').upper()}"]
+
+  host = [(role_host, MQ_PORT)]
+  print(host, flush=True)
+  c = stomp.Connection(host)
+  c.set_ssl(host)
+  c.connect(MQ_USER, MQ_PASSWORD, wait=False)
+  return c
+
 def write_notification(event):
-  host = [(MQ_HOST, MQ_PORT)]
-  conn = stomp.Connection(host)
-  conn.set_ssl(host)
-  conn.connect(MQ_USER, MQ_PASSWORD, wait=True)
-  conn.send(body=json.dumps(event), destination='antipode-notifications')
-  conn.disconnect()
+  c = _conn('writer')
+  c.send(body=json.dumps(event), destination=MQ_NOTIFICATION_QUEUE)
+  c.disconnect()
 
 def parse_event(event):
   import base64
