@@ -49,7 +49,8 @@ pd.set_option('display.expand_frame_repr', False)
 #       - Select PRODUCTION template
 #       - Cluster name: 'antipode-lambda-eu'
 #       - Username: 'antipode' / Password: 'antipode'
-#       - Choose an instance class (tick "Include previous generations" for older and cheaper instances)
+#       - Choose a burstable instance class
+#           * Tick "Include previous generations" for older and cheaper instances
 #       - Do not create Multi-AZ deployment
 #       - Public access: YES
 #       - Choose 'allow-all' VPC group
@@ -58,7 +59,7 @@ pd.set_option('display.expand_frame_repr', False)
 #       - Disable Performance Insights
 #       - Disable Enhanced monitoring
 #       - Disable auto minor version upgrade
-#       - Disable delete protection
+#       - Enable delete protection
 #   3. Wait for all the instances to be created
 #   4. Select the 'antipode-lambda-eu' cluster and perform the action 'Add AWS zone'
 #       - Global database identifier: antipode-lambda
@@ -757,7 +758,7 @@ def gather(args):
     # set new number of requests to messages
     num_requests = num_messages
 
-  print("[INFO] Gater info through SQS... ", flush=True)
+  print("[INFO] Gather info from SQS... ", flush=True)
   resource_sqs = boto3.resource('sqs', region_name=reader_region)
   eval_queue = resource_sqs.get_queue_by_name(QueueName=CONNECTION_INFO['sqs_eval']['name'])
 
