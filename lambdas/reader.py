@@ -62,10 +62,15 @@ def lambda_handler(event, context):
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
 
   # write evaluation to SQS queue
-  cli_sqs = boto3.client('sqs')
+  # due to bug with VPC and SQS we have to be explicit regarding the endpoint url
+  # https://github.com/boto/boto3/issues/1900#issuecomment-471047309
+  cli_sqs = boto3.Session().client(
+      service_name='sqs',
+      endpoint_url=f"https://sqs.{os.environ['READER_REGION']}.amazonaws.com",
+    )
   cli_sqs.send_message(
-    QueueUrl=os.environ[f"SQS_EVAL_URL__{os.environ['READER_REGION'].replace('-','_').upper()}"],
-    MessageBody=json.dumps(evaluation, default=str),
-  )
+      QueueUrl=os.environ[f"SQS_EVAL_URL__{os.environ['READER_REGION'].replace('-','_').upper()}"],
+      MessageBody=json.dumps(evaluation, default=str),
+    )
 
   return { 'statusCode': 200, 'body': json.dumps(evaluation, default=str) }
