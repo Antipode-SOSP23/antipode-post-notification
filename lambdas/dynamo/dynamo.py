@@ -14,8 +14,7 @@ def _conn(role):
     )
 
 def write_post(i,k):
-  dynamo_conn = _conn('writer')
-  post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
+  post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
   op = (DYNAMO_POST_TABLE_NAME, 'k', k)
   post_table.put_item(Item={
       'k': str(k),
@@ -24,8 +23,7 @@ def write_post(i,k):
   return op
 
 def read_post(k, evaluation):
-  dynamo_conn = _conn('reader')
-  post_table = dynamo_conn.Table(DYNAMO_POST_TABLE_NAME)
+  post_table = _conn('reader').Table(DYNAMO_POST_TABLE_NAME)
 
   # evaluation keys to fill
   # {
@@ -36,12 +34,13 @@ def read_post(k, evaluation):
   # read key of post
   ts_read_post_start = datetime.utcnow().timestamp()
   while True:
-    if 'Item' in post_table.get_item(Key={'k': str(k)}):
+    get_item = post_table.get_item(Key={'k': str(k)}, AttributesToGet=['k'])
+    if 'Item' in get_item:
       evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
       break
     else:
       evaluation['read_post_retries'] += 1
-      print(f"[RETRY] Read 'k' v='{k}'")
+      print(f"[RETRY] Read 'k' = '{k}'", flush=True)
 
 def antipode_bridge(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying
@@ -49,9 +48,8 @@ def antipode_bridge(id, role):
   return ant.AntipodeDynamo(_id=id, conn=_conn(role))
 
 def write_notification(event):
-  dynamo_conn = _conn('writer')
   # write notification to current AWS region
-  notifications_table = dynamo_conn.Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
+  notifications_table = _conn('writer').Table(DYNAMO_NOTIFICATIONS_TABLE_NAME)
   # take parts of the event and turn into dynamo notification
   item = {
     'k': str(event['i']),

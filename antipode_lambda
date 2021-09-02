@@ -268,7 +268,7 @@ def _build_service(role, args):
           Runtime: python3.7
           Description: 'Antipode Lambda - {{ post_storage }}<>{{ notification_storage }} - {{ role }}'
           MemorySize: 128
-          Timeout: 120
+          Timeout: 90
           Role: {{ iam_lambda_admin_role_arn }}
           {% if role == 'reader' %}{{ reader_event_source | indent(10, False) }}{% endif %}
           Environment:

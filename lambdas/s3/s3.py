@@ -35,7 +35,7 @@ def read_post(k, evaluation):
       break
     except botocore.exceptions.ClientError as e:
       if e.response['Error']['Code'] in ['NoSuchKey','404']:
-        print(f"[RETRY] Read 'k' v='{k}'")
+        print(f"[RETRY] Read 'k' v='{k}'", flush=True)
         evaluation['read_post_retries'] += 1
         pass
       else:

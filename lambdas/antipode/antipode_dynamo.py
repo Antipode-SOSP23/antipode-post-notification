@@ -28,5 +28,5 @@ class AntipodeDynamo:
     for op in operations:
       op_table = self.conn.Table(op[0])
       while True:
-        if 'Item' in op_table.get_item(Key={op[1]: str(op[2])}):
+        if 'Item' in op_table.get_item(Key={op[1]: str(op[2])}, AttributesToGet=[op[1]]):
           break
