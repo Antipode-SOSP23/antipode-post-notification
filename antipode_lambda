@@ -232,15 +232,16 @@ def _get_last(k):
 
 def _build_app_args(post_storage, notification_storage):
   return {
-    'writer': {
-      'stack_name': f"antipode-lambda-{post_storage}-{notification_storage}-writer",
-      'lambda_name': f"AntipodeLambda{post_storage.title()}{notification_storage.title()}Writer",
-    },
-    'reader': {
-      'stack_name': f"antipode-lambda-{post_storage}-{notification_storage}-reader",
-      'lambda_name': f"AntipodeLambda{post_storage.title()}{notification_storage.title()}Reader",
+      'writer': {
+        'stack_name': f"antipode-lambda-{post_storage}-{notification_storage}-writer",
+        'lambda_name': f"AntipodeLambda{post_storage.title()}{notification_storage.title()}Writer",
+      },
+      'reader': {
+        'stack_name': f"antipode-lambda-{post_storage}-{notification_storage}-reader",
+        'lambda_name': f"AntipodeLambda{post_storage.title()}{notification_storage.title()}Reader",
+      },
+      'vpc_required': (CONNECTION_INFO['datastores'][post_storage]['vpc_required'] or CONNECTION_INFO['datastores'][notification_storage]['vpc_required']),
     }
-  }
 
 def _template_env_variables():
   env = {}
@@ -295,6 +296,13 @@ def _build_service(role, args):
           MemorySize: 128
           Timeout: 90
           Role: {{ iam_lambda_admin_role_arn }}
+          {% if vpc_required %}
+          VpcConfig:
+            SubnetIds:
+              - {{ vpc_subnet_id }}
+            SecurityGroupIds:
+              - {{ vpc_security_group_id }}
+          {% endif %}
           {% if role == 'reader' %}{{ reader_event_source | indent(10, False) }}{% endif %}
           Environment:
             Variables:
@@ -318,6 +326,10 @@ def _build_service(role, args):
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
     'delay_ms': args['delay'],
+    # vpc configurations if needed
+    'vpc_required': app_args['vpc_required'],
+    'vpc_subnet_id': CONNECTION_INFO['lambda']['network'][args[role]]['subnet_id'],
+    'vpc_security_group_id': CONNECTION_INFO['lambda']['network'][args[role]]['security_group_id'],
     # each notification storage has a different event source for the reader lambda
     'reader_event_source': getattr(sys.modules[__name__], f"reader_event_source__{args['notification_storage']}")(),
     # we pass everything and leave for lambda implementation to decide what and how to use
