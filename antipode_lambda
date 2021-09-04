@@ -31,8 +31,8 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 #   1. Go to us-east-1 zone and to the AWS SQS dashboard
 #   2. Create queue with the following parameters:
-#         - Standard type
-#         - name: *SQS_EVAL_QUEUE['name']*
+#       - Standard type
+#       - name: antipode-lambda-notifications
 #--------------
 
 #--------------
@@ -41,6 +41,7 @@ pd.set_option('display.expand_frame_repr', False)
 #   - As a tip use the same name for all objects, its easier to track. We use 'antipode-mq'
 #
 #   1. Create a VPC with a unique CIDR block
+#       - *MAIN CONCERN*: Amazon MQ peering connection WILL NOT WORK ON OVERLAPPING CIDR BLOCS. Hence choose a unique one for each region VPC
 #   2. After creating click on ACTIONS and enable DNS hostnames
 #   3. Create a subnet with the full CIDR block
 #   4. Go to Security Groups and select the default one.
@@ -87,7 +88,7 @@ pd.set_option('display.expand_frame_repr', False)
 #       - *Choose all the above configurations for the new instance when possible*
 #       - DB instance identifier: antipode-lambda-us-instance
 #       - DB cluster identifier: antipode-lambda-us
-#   . Modify 'antipode-lambda-us-instance-1' name to 'antipode-lambda-us-instance'
+#   5. Modify 'antipode-lambda-us-instance-1' name to 'antipode-lambda-us-instance'
 #
 # ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 #--------------
@@ -97,17 +98,17 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 #   1. Go to eu-central-1 zone and to the AWS SNS dashboard
 #   2. Go to Topics and create a new one with the following parameters:
-#         - Standard type
-#         - name: antipode-lambda-notifications
+#       - Standard type
+#       - name: antipode-lambda-notifications
 #--------------
 
 #--------------
 # AWS S3 GLOBAL
 #--------------
 #   1. Go AWS dashboard and create 2 buckets within 2 zones
-#         - Enabled versioning
+#       - Enabled versioning
 #   2. Go the "primary" bucket and create replication to the 2nd bucket
-#         - Use the antipode-lambda-s3-admin IAM role
+#       - Use the antipode-lambda-s3-admin IAM role
 #--------------
 
 #--------------
@@ -115,14 +116,24 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 #   1. Create tables with ON-DEMAND provisioning and everything else default
 #   2. After created go to dashboard:
-#         - Create a replica on the desired zone
+#       - Create a replica on the desired zone
 #--------------
 
 #--------------
 # AWS ELASTICACHE
 #--------------
-#   1. Create a subnet group with a previously created VPC (see instructions above)
-#   2. Create a global cluster between 2 zones with the same VPC by selecting the previously select subnet group
+#   1. Create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone)
+#      The properties are similar for the other zones you add to the cluster
+#       - Name: antipode-lambda-<region>
+#       - Port: 6379 (or the one you define in connection_info.yaml)
+#       - Node type: cache.r5.large
+#       - Num replicas: 1
+#       - Create a new Subnet group:
+#           - Name: antipode-lambda-<region>
+#           - Select previously created VPC and Subnet group
+#           - Select the AZ preference to the only AZ that should be there
+#       - Select the default SG for the choosed VPC
+#       - Disable backups
 #
 #   - WARN: you might have to create an EC2 instance on the zone and perform an initial request to "unlock" the zone for EC
 #--------------
@@ -130,60 +141,60 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 # AWS MQ
 #--------------
-#   1. You will have to create a VCP, a Subnet, an Internet Gateway and a routing rules.
+#   1. Using the previously created VCP, you have to add peering between the reader and writer zone
 #      Check the following material for more details:
-#         - https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
-#         - https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
-#         - https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
-#     Some side notes:
-#         - Security group:
-#               - To ease up allow both ALL IPV4 ADDRESSES and ALL IPV6 ADDRESSES in both INBOUND and OUTBOUND
-#               - Add the security group to the inbound rules of the security group
-#         - Routing rules:
-#               - Do not forget to add the Internet Gateway to the routing rules
-#               - Allong with the peering network configurations
+#      https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
+#      https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
+#       - *MAIN CONCERN*: WILL NOT WORK WITH VPCs WITH OVERLAPING CIDRS
+#       - Go to the the secondary zone and create a new Peering Connection
+#           - Name: antipode-mq-<primary>-<secondary> (e.g. antipode-mq-eu-us)
+#           - Select the previously created VPC
+#           - The select the primary zone and paste the previously created VPC id
+#       - Go to the Peering Connections on the primary zone and accept the pending request (you might want to change the name as well)
+#       - On both zones go to the Routing Table. We will match the pair the CIDR blocks
+#           - On zone REGION-A add the entry: <REGION-B CIDR block> -> pcx-id (peering connection)
+#           - On zone REGION-B add the entry: <REGION-A CIDR block> -> pcx-id (peering connection)
+#      At the end of the whole setup, primary should have a configuration similar to this one:
+#           50.0.0.0/16	local       (self)
+#           51.0.0.0/16	pcx-id      (peering connection to secondary, e.g. eu-us)
+#           52.0.0.0/16	pcx-id      (peering connection to secondary, e.g. eu-sg)
+#           0.0.0.0/0	  igw-id      (internet gateway)
+#           (you might have more entries from the endpoint configurations)
+#      And the secondaries should have a configuration similar to this one:
+#           52.0.0.0/16	local       (self)
+#           50.0.0.0/16	pcx-id      (peering connection to primary, e.g. eu-sg)
+#           0.0.0.0/0	  igw-id      (internet gateway)
+#           (you might have more entries from the endpoint configurations)
+#   2. Go the all the zones and create a broker with the following configuration:
+#       - Engine: Apache ActiveMQ
+#       - Single-instance broker
+#       - Durability optimized
+#       - Broker name: antipode-lambda-notifications-<region>
+#       - Username: antipode
+#       - Password: antipode1antipode
+#       - Broker engine: 5.16.2
+#       - Select to create a default configuration
+#       - Select pre-created VPC config: antipode-mq
+#       - Select pre-created Security group: antipode-mq
+#       - Disable maintenance
+#   3. Double check that you CAN access the public broker management dashboard
+#   4. Go the the PRIMARY (writer) zone and edit the created configuration by uncommeting the networkConnectors blocks and replace with this (change the uris as needed):
+#      ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
 #
-#   2. Go the secondary zone US and create a broker with the following configuration:
-#         - Engine: Apache ActiveMQ
-#         - Single-instance broker
-#         - Durability optimized
-#         - Broker name: antipode-lambda-notifications-us
-#         - Username: antipode
-#         - Password: antipode1antipode
-#         - Broker engine: 5.16.2
-#         - Select default configuration
-#         - Select pre-created VPC config: antipode-vpc
-#         - Select pre-created Security group: antipode-vpc-sg
-#         - Disable maintenance
-#
-#   3. Now create a Broker in the primary zone EU with the following configuration:
-#         - Engine: Apache ActiveMQ
-#         - Single-instance broker
-#         - Durability optimized
-#         - Broker name: antipode-lambda-notifications-us
-#         - Username: antipode
-#         - Password: antipode1antipode
-#         - Broker engine: 5.16.2
-#         - Select to create default configuration
-#         - Select the latest revision
-#         - Select pre-created VPC config: antipode-vpc
-#         - Select pre-created Security group: antipode-vpc-sg
-#         - Disable maintenance
-#
-#   4. Edit the created configuration by uncommeting the networkConnectors block and replace with this (cnahge the uri as needed):
 # <networkConnectors>
 #   <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+#   <networkConnector duplex="true" name="ConnectorEuToSg" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
 # </networkConnectors>
 #
 #   5. Go the broker again and change the REVISION of the configuration file and do APPLY IMMEDEATLY
 #
-#   6. Create a consumer on US region to the EU region (change url):
-# activemq consumer --brokerUrl "ssl://b-8847288a-a3fe-4869-b3f2-6e14b7cefed3-1.mq.us-east-1.amazonaws.com:61617" \
+#   6. Create a consumer on a secondary region to the primary region (change url):
+# activemq consumer --brokerUrl "ssl://b-20f3cf89-7725-44b0-946b-19e84c03b81e-1.mq.ap-southeast-1.amazonaws.com:61617" \
 #                   --user antipode \
 #                   --password antipode1antipode \
 #                   --destination queue://antipode-notifications
 #
-#         - Double check with a producer
+#       - Double check with a producer
 # activemq producer --brokerUrl "ssl://b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com:61617" \
 #                   --user antipode \
 #                   --password antipode1antipode \
@@ -192,11 +203,12 @@ pd.set_option('display.expand_frame_repr', False)
 #                   --messageSize 1000 \
 #                   --messageCount 10
 #
-#         - Go the the dashboard and you should see 10 messages enqueued and dequeued
+#       - Go the the dashboard and you should see 10 messages enqueued and dequeued
 #
+#   7. Create a secret for MQ lambda access on the primary region:
+#         aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}'
+#       - After created edit the secret and replicate to secondary regions
 #
-#   5. Create a secret for MQ lambda access on the US region:
-#       aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}'
 #--------------
 
 
@@ -470,7 +482,7 @@ def reader_event_source__mq():
   reader_region = _get_last(f"reader_region")
   broker_arn = CONNECTION_INFO['datastores']['mq'][f"arn__{reader_region}"]
   queue = CONNECTION_INFO['datastores']['mq']['notification_queue']
-  secretmanager_arn = CONNECTION_INFO['datastores']['mq']['secretmanager_arn']
+  secretmanager_arn = CONNECTION_INFO['datastores']['mq'][f"secretmanager_arn__{reader_region}"]
 
   template = """
     Events:
