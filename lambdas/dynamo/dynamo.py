@@ -84,3 +84,6 @@ def parse_event(event):
       return 422, event
 
   return 200, event
+
+def clean():
+  None

@@ -5,13 +5,13 @@ iam_lambda_admin_role_arn: arn:aws:iam::641424397462:role/antipode-lambda-admin
 lambda:
   network:
     eu-central-1:
-      vpc_id: vpc-02d0c0a1247e1be3d
-      subnet_id: subnet-0a2fff52234657ee2
-      security_group_id: sg-015e60e7da85c5e09
+      vpc_id: vpc-0dfcf64e02991d325
+      subnet_id: subnet-06f3dacfcf9438322
+      security_group_id: sg-017dc2956534260f2
     us-east-1:
-      vpc_id: vpc-0b29667628f0c8377
-      subnet_id: subnet-058eda68c25303f1b
-      security_group_id: sg-0d888d52cb3bfc779
+      vpc_id: vpc-04f0a9ae35baff5e9
+      subnet_id: subnet-01b04ac61e28ea667
+      security_group_id: sg-0bb46192037674cc9
   s3_buckets:
     eu-central-1: antipode-lambda-eu
     us-east-1: antipode-lambda-us
@@ -39,12 +39,12 @@ datastores:
     bucket__us-east-1__reader: antipode-lambda-posts-us
     antipode_path: antipode
   mq:
-    name__eu-central-1: antipode-lambda-notifications-eu
-    arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:antipode-lambda-eu:b-041e83c9-418c-462b-8f12-fa3be1d870cb
-    stomp_host__eu-central-1: b-041e83c9-418c-462b-8f12-fa3be1d870cb-1.mq.eu-central-1.amazonaws.com
+    name__eu-central-1: mq-eu
+    arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:mq-eu:b-8b026a92-1858-4a76-bc7a-7bfb25be209d
+    stomp_host__eu-central-1: b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com
     stomp_port: 61614
-    name__us-east-1: antipode-lambda-notifications-us
-    arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:antipode-lambda-us:b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9
+    name__us-east-1: mq-us
+    arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:mq-us:b-8847288a-a3fe-4869-b3f2-6e14b7cefed3
     user: antipode
     password: antipode1antipode
     secretmanager_arn: arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa

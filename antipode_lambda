@@ -99,6 +99,13 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 
 #--------------
+# AWS ELASTICACHE
+#--------------
+#   1. Create a subnet group with a previously created VPC
+#   2. Create a global cluster between 2 zones with the same VPC by selecting the previously select subnet group
+#--------------
+
+#--------------
 # AWS MQ
 #--------------
 #   1. You will have to create a VCP, a Subnet, an Internet Gateway and a routing rules.
@@ -127,35 +134,7 @@ pd.set_option('display.expand_frame_repr', False)
 #         - Select pre-created Security group: antipode-vpc-sg
 #         - Disable maintenance
 #
-#   3. Go to EU zone and create a CONFIGURATION
-#         - Configuration name: antipode-lambda-mq-eu-config
-#         - Broker version: 5.16.2
-#         - Simple verification
-#         - Edit the configuration and past the following XML
-#             - ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/network-of-brokers.html#how-to-configure-cross-region
-#             - NOTE: change the ssl uri to the one from US broker
-#
-# <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-# <broker schedulePeriodForDestinationPurge="10000" xmlns="http://activemq.apache.org/schema/core">
-#   <destinationPolicy>
-#     <policyMap>
-#       <policyEntries>
-#         <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" topic="&gt;">
-#           <pendingMessageLimitStrategy>
-#             <constantPendingMessageLimitStrategy limit="1000"/>
-#           </pendingMessageLimitStrategy>
-#         </policyEntry>
-#         <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" queue="&gt;"/>
-#       </policyEntries>
-#     </policyMap>
-#   </destinationPolicy>
-#   <plugins/>
-#   <networkConnectors>
-#     <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
-#   </networkConnectors>
-# </broker>
-#
-#   4. Now create a Broker in the primary zone EU with the following configuration:
+#   3. Now create a Broker in the primary zone EU with the following configuration:
 #         - Engine: Apache ActiveMQ
 #         - Single-instance broker
 #         - Durability optimized
@@ -163,11 +142,36 @@ pd.set_option('display.expand_frame_repr', False)
 #         - Username: antipode
 #         - Password: antipode1antipode
 #         - Broker engine: 5.16.2
-#         - Select custom configuration: antipode-lambda-mq-eu-config
+#         - Select to create default configuration
 #         - Select the latest revision
 #         - Select pre-created VPC config: antipode-vpc
 #         - Select pre-created Security group: antipode-vpc-sg
 #         - Disable maintenance
+#
+#   4. Edit the created configuration by uncommeting the networkConnectors block and replace with this (cnahge the uri as needed):
+# <networkConnectors>
+#   <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+# </networkConnectors>
+#
+#   5. Go the broker again and change the REVISION of the configuration file and do APPLY IMMEDEATLY
+#
+#   6. Create a consumer on US region to the EU region (change url):
+# activemq consumer --brokerUrl "ssl://b-8847288a-a3fe-4869-b3f2-6e14b7cefed3-1.mq.us-east-1.amazonaws.com:61617" \
+#                   --user antipode \
+#                   --password antipode1antipode \
+#                   --destination queue://antipode-notifications
+#
+#         - Double check with a producer
+# activemq producer --brokerUrl "ssl://b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com:61617" \
+#                   --user antipode \
+#                   --password antipode1antipode \
+#                   --destination queue://antipode-notifications \
+#                   --persistent true \
+#                   --messageSize 1000 \
+#                   --messageCount 10
+#
+#         - Go the the dashboard and you should see 10 messages enqueued and dequeued
+#
 #
 #   5. Create a secret for MQ lambda access on the US region:
 #       aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}'
@@ -338,7 +342,6 @@ def _build_service(role, args):
   # DUE TO THIS BUG WE HAVE TO USE THIS --use-container FLAG -.-
   # https://github.com/aws/aws-lambda-builders/issues/229
   sam['build', '--use-container'] & FG
-
   sam['deploy',
       '--region', region,
       '--stack-name', stack_name,
@@ -884,6 +887,7 @@ REGIONS = {
   'us': 'us-east-1',
   'sg': 'ap-southeast-1',
 }
+LAMBDA_CLEAN_TAG = "-#CLEAN#-"
 CPU_COUNT = mp.cpu_count()
 NOTIFICATION_KEY_LEN = 10
 PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]

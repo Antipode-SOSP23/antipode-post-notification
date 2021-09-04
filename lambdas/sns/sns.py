@@ -17,3 +17,6 @@ def parse_event(event):
     event = json.loads(event['Records'][0]['Sns']['Message'])
 
   return 200, event
+
+def clean():
+  None

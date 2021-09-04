@@ -19,7 +19,6 @@ class AntipodeS3:
 
 
   def cscope_close(self, c):
-    # write post
     self.s3_client.put_object(
         Bucket=self.bucket,
         Key=self._bucket_key(c._id),
@@ -38,8 +37,6 @@ class AntipodeS3:
           pass
         else:
           raise
-
-
     # read post operations
     for op in operations:
       # op: (BUCKET_NAME, <KEY>)

@@ -45,3 +45,6 @@ def antipode_bridge(id, role):
   import antipode_s3 as ant # this file will get copied when deploying
 
   return ant.AntipodeS3(_id=id, conn=_bucket(role))
+
+def clean():
+  None

@@ -17,6 +17,13 @@ ANTIPODE = bool(int(os.environ['ANTIPODE']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
+  # this is used in cases where Lambdas are inside a VPC and we cannot clean outside of it
+  if "-#CLEAN#-" in event:
+    # dynamically call clean
+    getattr(importlib.import_module(POST_STORAGE), 'clean')()
+    getattr(importlib.import_module(NOTIFICATION_STORAGE), 'clean')()
+    return { 'statusCode': 200, 'body': event }
+
   # dynamically load
   write_post = getattr(importlib.import_module(POST_STORAGE), 'write_post')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
@@ -45,6 +52,6 @@ def lambda_handler(event, context):
 
   # return the event and the code
   return {
-    'statusCode': 200,
-    'body': json.dumps(event, default=str)
-  }
+      'statusCode': 200,
+      'body': json.dumps(event, default=str)
+    }

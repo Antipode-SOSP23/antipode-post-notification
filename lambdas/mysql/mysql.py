@@ -84,3 +84,6 @@ def antipode_bridge(id, role):
   import antipode_mysql as ant # this file will get copied when deploying
 
   return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))
+
+def clean():
+  None

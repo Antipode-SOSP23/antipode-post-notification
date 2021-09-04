@@ -12,7 +12,6 @@ def _conn(role):
   role_host = os.environ[f"MQ_STOMP_HOST__{role_region.replace('-','_').upper()}"]
 
   host = [(role_host, MQ_PORT)]
-  print(host, flush=True)
   c = stomp.Connection(host)
   c.set_ssl(host)
   c.connect(MQ_USER, MQ_PASSWORD, wait=False)
@@ -35,3 +34,6 @@ def parse_event(event):
     event = json.loads(base64.b64decode(b64_data.encode('ascii')).decode('ascii'))
 
   return 200, event
+
+def clean():
+  None
