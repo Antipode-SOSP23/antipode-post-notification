@@ -36,6 +36,26 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 
 #--------------
+# AMAZON VPC
+#--------------
+#   - As a tip use the same name for all objects, its easier to track. We use 'antipode-mq'
+#
+#   1. Create a VPC with a unique CIDR block
+#   2. After creating click on ACTIONS and enable DNS hostnames
+#   3. Create a subnet with the full CIDR block
+#   4. Go to Security Groups and select the default one.
+#       - Inbound rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
+#       - Outbout rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
+#   5. Create an Internet Gateway
+#       - After creating attach it to the VPC
+#   6. Go to the created subnets default Route Table
+#       - Add an entry for 0.0.0.0/0 to the created internet gateway
+#   7. Go to Endpoints and create an entrypoint for AWS services needed. Make sure you select the correct VPC and Subnet
+#       - Reader: SNS, SQS
+#       - Writer: SNS, Dynamo (Gateway), ec2
+#--------------
+
+#--------------
 # AWS AURORA GLOBAL CLUSTER
 #--------------
 #   1. Go to eu-central-1 zone
