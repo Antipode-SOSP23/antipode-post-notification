@@ -121,8 +121,10 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 # AWS ELASTICACHE
 #--------------
-#   1. Create a subnet group with a previously created VPC
+#   1. Create a subnet group with a previously created VPC (see instructions above)
 #   2. Create a global cluster between 2 zones with the same VPC by selecting the previously select subnet group
+#
+#   - WARN: you might have to create an EC2 instance on the zone and perform an initial request to "unlock" the zone for EC
 #--------------
 
 #--------------
@@ -675,6 +677,24 @@ def clean__mq():
   # nothing to do
   None
 
+def clean__cache():
+  print("\t[INFO] Cleaning Redis ElastiCache... ", end='', flush=True)
+  # only way to clean cache is from within the VPC
+  # hence we trigger a Lambda with a specific clean action tag
+  writer_region = _get_last(f"writer_region")
+  writer_lambda_arn = _get_last(f"writer__lambda__arn")
+
+  writer_client = boto3.client('lambda', region_name=writer_region)
+  response = writer_client.invoke(
+      FunctionName=writer_lambda_arn,
+      InvocationType='RequestResponse',
+      Payload= json.dumps({ LAMBDA_CLEAN_TAG: 1 })
+    )
+  # exists if we get a 200 or 202 (for async) return code
+  status_code = response['ResponseMetadata']['HTTPStatusCode']
+  if status_code != 200:
+    raise Exception('Failed to clean cache storage')
+  print("Done!")
 
 #--------------
 # RUN
@@ -907,6 +927,7 @@ POST_STORAGE = [
   'mysql',
   'dynamo',
   's3',
+  'cache',
 ]
 NOTIFICATION_STORAGE = [
   'sns',

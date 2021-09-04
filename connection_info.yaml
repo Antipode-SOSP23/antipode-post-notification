@@ -65,9 +65,16 @@ datastores:
     name__us-east-1: mq-us
     arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:mq-us:b-8847288a-a3fe-4869-b3f2-6e14b7cefed3
     secretmanager_arn: arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa
-    notification_queue: antipode-notifications
+  cache:
+    vpc_required: true
+    #
+    port: 6379
+    #
+    host__eu-central-1__writer: antipode-lambda-eu.0sr6mv.ng.0001.euc1.cache.amazonaws.com
+    host__us-east-1__reader: antipode-lambda-us.1hbm5s.ng.0001.use1.cache.amazonaws.com
 
 sqs_eval:
   name: antipode-lambda-eval
+  #
   url__us-east-1: https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval
   arn__us-east-1: arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval
