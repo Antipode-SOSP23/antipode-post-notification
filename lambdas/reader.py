@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import importlib
 import boto3
+from botocore.client import Config
 
 #--------------
 # AWS SAM Deployment details
@@ -64,9 +65,12 @@ def lambda_handler(event, context):
   # write evaluation to SQS queue
   # due to bug with VPC and SQS we have to be explicit regarding the endpoint url
   # https://github.com/boto/boto3/issues/1900#issuecomment-471047309
+  config = Config(connect_timeout=5, retries={'max_attempts': 5})
   cli_sqs = boto3.Session().client(
       service_name='sqs',
+      region_name=os.environ['READER_REGION'],
       endpoint_url=f"https://sqs.{os.environ['READER_REGION']}.amazonaws.com",
+      config=config
     )
   cli_sqs.send_message(
       QueueUrl=os.environ[f"SQS_EVAL_URL__{os.environ['READER_REGION'].replace('-','_').upper()}"],
