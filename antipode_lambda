@@ -81,14 +81,24 @@ pd.set_option('display.expand_frame_repr', False)
 #       - Disable Enhanced monitoring
 #       - Disable auto minor version upgrade
 #       - Enable delete protection
-#   3. Wait for all the instances to be created
-#   4. Select the 'antipode-lambda-eu' cluster and perform the action 'Add AWS zone'
-#       - Global database identifier: antipode-lambda
-#       - Secondary region: US East (N Virginia)
-#       - *Choose all the above configurations for the new instance when possible*
-#       - DB instance identifier: antipode-lambda-us-instance
-#       - DB cluster identifier: antipode-lambda-us
-#   5. Modify 'antipode-lambda-us-instance-1' name to 'antipode-lambda-us-instance'
+#   4. Wait for all the instances to be created
+#   5. Select the top level "Global Database". Click on Actions and "Add AWS region". You will get to a "Add Region" panel where you can setup the new replica:
+#       - Secondary region: <region_name>
+#       - Select lowest memory optimized machine
+#       - Do not create multi-az deployment
+#       - Select the default VPC
+#           - DO NOT CHANGE antipode-mq to support RDS by adding more subnets
+#       - Enable Public access
+#       - Select the 'allow-all' VPC security group. If its not created, you should create with:
+#           - ALL TRAFFIC open for all IPv4 and IPv6, in inbound and outbound
+#           - Rule to allow itself - the security group - in inbound and outbound
+#       - Select the AZ terminated in a (?? needed)
+#       - Do not enable "read replica write forwarding"
+#       - DB instance identifier: antipode-lambda-<region name>-instance
+#       - DB cluster identifier: antipode-lambda-<region name>
+#       - Disable Performance Insights
+#       - Disable Monitoring
+#       - Disable Auto minor version upgrade
 #
 # ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 #--------------
@@ -105,18 +115,31 @@ pd.set_option('display.expand_frame_repr', False)
 #--------------
 # AWS S3 GLOBAL
 #--------------
-#   1. Go AWS dashboard and create 2 buckets within 2 zones
+#   1. Go AWS dashboard and create buckets within all zones
+#       - Name: antipode-lambda-posts-<region>
 #       - Enabled versioning
-#   2. Go the "primary" bucket and create replication to the 2nd bucket
-#       - Use the antipode-lambda-s3-admin IAM role
+#   2. Go the primary region and create replication from the bucket in that region other buckets
+#       - Name: to-reader-<secondary region>
+#       - Rule scope: apply to all objects
+#       - On Destination click 'Browse S3' and find the bucket named: antipode-lambda-posts-<secondary region>
+#       - Use the 'antipode-lambda-s3-admin' IAM role
+#           - This is a rule that gives S3 admin access to operations needed
+#       - Do not select RTC
+#
+# NOTE: we should also change the replication priority for each deployment (input on code and wait for changes in dashboard?)
 #--------------
 
 #--------------
 # AWS DYNAMO
 #--------------
-#   1. Create tables with ON-DEMAND provisioning and everything else default
-#   2. After created go to dashboard:
-#       - Create a replica on the desired zone
+#   1. On each region create for posts, notifications and cscopes
+#       - For name check the connection_info file
+#       - Select everything default
+#   2. After created go to dashboard on the primary region and select Tables:
+#       - For the 3 tables (posts, notifications, cscopes) do the following:
+#           - Go to Global Tables
+#           - Create replica to the desired region
+#           - Double check in secondary region if tables got created
 #--------------
 
 #--------------
