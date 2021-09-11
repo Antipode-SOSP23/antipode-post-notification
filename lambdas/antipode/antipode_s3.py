@@ -1,6 +1,7 @@
 import os
 import boto3
 import botocore
+import antipode as ant
 
 S3_ANTIPODE_PATH = os.environ['S3_ANTIPODE_PATH']
 
@@ -22,17 +23,15 @@ class AntipodeS3:
     self.s3_client.put_object(
         Bucket=self.bucket,
         Key=self._bucket_key(c._id),
-        # TODO: add FULL cscope
-        Body='',
+        Body=c.to_json(),
       )
 
-  def retrieve_cscope(self, cscope_id):
+  def retrieve_cscope(self, cscope_id, service_registry):
     # read cscope_id
     while True:
       try:
-        # TODO: should return the cscope written
-        self.s3_client.head_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
-        break
+        s3_object = self.s3_client.get_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
+        return ant.Cscope.from_json(service_registry, s3_object['Body'].read())
       except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] in ['NoSuchKey','404']:
           print(f"[RETRY] Read {self._bucket_key(str(cscope_id))}@{self.bucket}", flush=True)

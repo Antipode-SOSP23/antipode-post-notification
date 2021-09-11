@@ -154,7 +154,7 @@ def _build_service(role, args):
     'writer_region': args['writer'],
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
-    'antipode_rendezvous_enabled': int(False),
+    'antipode_rendezvous_enabled': int(args['antipode_rendezvous']),
     'delay_ms': args['delay'],
     # vpc configurations if needed
     'vpc_required': app_args['vpc_required'],
@@ -226,6 +226,9 @@ def _build_service(role, args):
   os.chdir(ROOT_PATH)
 
 def build(args):
+  # enable antipode in both scenarios
+  if args['antipode_rendezvous']:
+    args['antipode'] = True
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
   _put_last('post_storage', args['post_storage'])
@@ -433,7 +436,7 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['antipode_table']}` (cid VARCHAR(32))"
+    sql = f"CREATE TABLE `{MYSQL_CONN['antipode_table']}` (cid VARCHAR(32), json VARCHAR(20000))"
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
@@ -790,6 +793,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
+  build_parser.add_argument('-ant-r', '--antipode-rendezvous', action='store_true', help="Enables antipode rendezvouz point version")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application

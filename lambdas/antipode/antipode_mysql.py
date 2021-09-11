@@ -1,5 +1,6 @@
 import os
 import pymysql
+import antipode as ant
 
 MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE']
 
@@ -12,21 +13,20 @@ class AntipodeMysql:
     return self._id
 
   def cscope_close(self, c):
-    # TODO: add FULL cscope
     with self.conn.cursor() as cursor:
-      sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`cid`) VALUES (%s)"
-      cursor.execute(sql, (c._id))
+      sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`cid`,`json`) VALUES (%s,%s)"
+      cursor.execute(sql, (c._id,c.to_json()))
       self.conn.commit()
 
-  def retrieve_cscope(self, cscope_id):
+  def retrieve_cscope(self, cscope_id, service_registry):
     # read cscope_id
     while True:
       with self.conn.cursor() as cursor:
-        sql = f"SELECT 1 FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `cid`=%s"
+        sql = f"SELECT `json` FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `cid`=%s"
         cursor.execute(sql, (cscope_id,))
-        if cursor.fetchone() is not None:
-          # TODO: should return the cscope written
-          break
+        result = cursor.fetchone()
+        if result is not None:
+          return ant.Cscope.from_json(service_registry, result[0])
 
   def cscope_barrier(self, operations):
     # read post operations
