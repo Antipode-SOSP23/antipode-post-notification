@@ -1,0 +1,8 @@
+pyyaml
+pandas
+pymysql
+boto3
+plumbum
+jinja2
+tqdm
+click

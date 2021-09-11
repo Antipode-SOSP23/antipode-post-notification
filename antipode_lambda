@@ -665,8 +665,7 @@ def gather(args):
           # index by i so we avoid duplicate results
           e = {
             'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
-            'read_post_retries': int(item['read_post_retries']),
-            'ts_read_post_spent_ms': int(item['ts_read_post_spent_ms']),
+            'concistent_read': int(item['concistent_read']), # 0 - False, 1 - True
             #
             'post_read_at': float(item['post_read_at']),
             'sent_at': float(item['sent_at']),
@@ -717,10 +716,10 @@ def gather(args):
 
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
-    'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
-    '%_INCONSISTENCIES': len(df.query('read_post_retries > 0')) / float(len(df)),
-    'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
-  }
+      'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
+      '%_INCONSISTENCIES': len(df.query('concistent_read == 0')) / float(len(df)),
+      'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
+    }
 
   # save the pandas describe
   with open(info_path, 'w') as f:

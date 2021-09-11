@@ -25,24 +25,8 @@ def write_post(i,k):
   return op
 
 def read_post(k, evaluation):
-  print("READ POST", flush=True)
   r = _conn('reader')
-
-  # evaluation keys to fill
-  # {
-  #   'read_post_retries' : 0,
-  #   'ts_read_post_spent_ms': None,
-  # }
-
-  # read key of post
-  ts_read_post_start = datetime.utcnow().timestamp()
-  while True:
-    if bool(r.exists(k)):
-      evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
-      break
-    else:
-      evaluation['read_post_retries'] += 1
-      print(f"[RETRY] Read 'k' v='{k}'", flush=True)
+  return bool(r.exists(k))
 
 def antipode_bridge(id, role):
   import antipode_cache as ant # this file will get copied when deploying

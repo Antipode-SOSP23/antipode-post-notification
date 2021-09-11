@@ -12,34 +12,23 @@ def write_post(i,k):
   s3_client = boto3.client('s3')
   op = (_bucket('writer'), str(k))
   s3_client.put_object(
-    Bucket=op[0],
-    Key=op[1],
-    Body=os.urandom(1000000),
-  )
+      Bucket=op[0],
+      Key=op[1],
+      Body=os.urandom(1000000),
+    )
   return op
 
 def read_post(k, evaluation):
   s3_client = boto3.client('s3')
-  # evaluation keys to fill
-  # {
-  #   'read_post_retries' : 0,
-  #   'ts_read_post_spent_ms': None,
-  # }
-
-  # read key of post
-  ts_read_post_start = datetime.utcnow().timestamp()
-  while True:
-    try:
-      s3_client.head_object(Bucket=_bucket('reader'), Key=str(k))
-      evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
-      break
-    except botocore.exceptions.ClientError as e:
-      if e.response['Error']['Code'] in ['NoSuchKey','404']:
-        print(f"[RETRY] Read 'k' v='{k}'", flush=True)
-        evaluation['read_post_retries'] += 1
-        pass
-      else:
-        raise
+  try:
+    s3_client.head_object(Bucket=_bucket('reader'), Key=str(k))
+    return True
+  except botocore.exceptions.ClientError as e:
+    if e.response['Error']['Code'] in ['NoSuchKey','404']:
+      return False
+    else:
+      # unknnown errors raise again
+      raise
 
 def antipode_bridge(id, role):
   import antipode_s3 as ant # this file will get copied when deploying

@@ -1,4 +1,13 @@
-# How to run
+# Installation
+
+## Standalone
+1. Make you have `docker` and `python3` installed
+2. Install requiremnts `pip3 install -r requirements.txt`
+3. Install AWS cli tools `aws` and `sam`
+4. Copy your credentials to your home path `mkdir -p ~/.aws/ && cp credentials ~/.aws/credentials`
+
+## Docker version
+Due to a bug with aws sam client this deployment is currently not working
 
 1. Build Docker image
 > docker build -t antipode-lambda .
@@ -6,27 +15,19 @@
 2. Run docker container
 > docker run --name antipode-lambda --rm -ti -v "$(pwd):/app" antipode-lambda bash
 
-3. Demo example run:
-```
-./antipode_lambda build \
-    --post-storage mysql \
-    --notification-storage sns \
-    --writer eu \
-    --reader us \
-    -ant
 
-./antipode_lambda run -r 5000
+# How to run
+1. You start by building the setup: `./antipode_lambda build --post-storage mysql --notification-storage sns --writer eu --reader us`
+If you have antipode add `-ant` to your options
 
-./antipode_lambda gather
+2. Then you run a certain number of requests: `./antipode_lambda run -r 5000`
 
-./antipode_lambda clean --strong
-```
+3. Then you gather results with an optional tag: `./antipode_lambda gather -t debug`
 
-4. You can also use our eval script that runs Antipode evaluation results (all regions, all combinations, 5k requests):
+4. Finally you clean your experiment in a strong way to remove deployed lambda `./antipode_lambda clean --strong`
 
-```
-./eval
-```
+As an alternative method, you can run our eval script (all regions, all combinations): `./eval`
+
 
 # AWS Configurations
 

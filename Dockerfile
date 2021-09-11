@@ -7,16 +7,16 @@ RUN set -ex ;\
         build-essential \
         git \
         groff \
-        tree \
-        wget \
-        unzip \
         # python
         python3 \
         python3-dev \
         python3-pip \
         # some command line utils
+        tree \
         vim \
         curl \
+        wget \
+        unzip \
         ; \
     rm -rf /var/lib/apt/lists/*
 

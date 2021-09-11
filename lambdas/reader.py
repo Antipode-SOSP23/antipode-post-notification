@@ -37,8 +37,8 @@ def lambda_handler(event, context):
     'i': event['i'],
     'sent_at': event['sent_at'],
     'ts_notification_spent_ms': int((received_at - event['sent_at']) * 1000),
-    'read_post_retries' : 0,
-    'ts_read_post_spent_ms': None,
+    'consistent_read' : 0,
+    'post_read_at': None,
     'antipode_spent_ms': None,
   }
 
@@ -59,7 +59,8 @@ def lambda_handler(event, context):
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   # read post and fill evaluation
-  read_post(event['key'], evaluation)
+  evaluation['consistent_read'] = int(read_post(event['key'], evaluation))
+  # keep time of read - visibility latency
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
 
   # write evaluation to SQS queue

@@ -24,23 +24,8 @@ def write_post(i,k):
 
 def read_post(k, evaluation):
   post_table = _conn('reader').Table(DYNAMO_POST_TABLE_NAME)
-
-  # evaluation keys to fill
-  # {
-  #   'read_post_retries' : 0,
-  #   'ts_read_post_spent_ms': None,
-  # }
-
   # read key of post
-  ts_read_post_start = datetime.utcnow().timestamp()
-  while True:
-    get_item = post_table.get_item(Key={'k': str(k)}, AttributesToGet=['k'])
-    if 'Item' in get_item:
-      evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
-      break
-    else:
-      evaluation['read_post_retries'] += 1
-      print(f"[RETRY] Read 'k' = '{k}'", flush=True)
+  return ('Item' in post_table.get_item(Key={'k': str(k)}, AttributesToGet=['k']))
 
 def antipode_bridge(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying

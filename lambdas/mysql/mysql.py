@@ -45,40 +45,12 @@ def read_post(k, evaluation):
   # connect to mysql
   mysql_conn = _mysql_connection('reader')
 
-  # evaluation keys to fill
-  # {
-  #   'read_post_retries' : 0,
-  #   'ts_read_post_spent': None,
-  # }
-
-  # read post
-  ts_read_post_start = datetime.utcnow().timestamp()
-  while True:
-    with mysql_conn.cursor() as cursor:
-      sql = f"SELECT `k` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
-      cursor.execute(sql, (k,))
-      result = cursor.fetchone()
-
-      # current date and time
-      if result is None:
-        evaluation['read_post_retries'] += 1
-        print(f"[RETRY] Read 'k' v='{k}'", flush=True)
-      else:
-        break
-
-  while True:
-    with mysql_conn.cursor() as cursor:
-      sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
-      cursor.execute(sql, (k,))
-      result = cursor.fetchone()
-
-      # current date and time
-      if result is None:
-        evaluation['read_post_retries'] += 1
-        print(f"[RETRY] Read 'b' v='{k}'", flush=True)
-      else:
-        evaluation['ts_read_post_spent_ms'] = int((datetime.utcnow().timestamp() - ts_read_post_start) * 1000)
-        break
+  with mysql_conn.cursor() as cursor:
+    sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
+    cursor.execute(sql, (k,))
+    result = cursor.fetchone()
+    # result is None if not found
+    return not(result is None)
 
 def antipode_bridge(id, role):
   import antipode_mysql as ant # this file will get copied when deploying
