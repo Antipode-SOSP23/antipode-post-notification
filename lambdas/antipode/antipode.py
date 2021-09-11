@@ -10,6 +10,7 @@ class Cscope:
       self.c = {
         'id': uuid.uuid4().hex,
         'operations': {},
+        'rendezvous_points': [],
       }
     else:
       self.c = c
@@ -21,6 +22,8 @@ class Cscope:
 
   def close(self):
     for storage,_ in self.c['operations'].items():
+      # for simplicity all storages are rendezvoupoints
+      self.c['rendezvous_points'].append(storage)
       self.service_registry[storage].cscope_close(self)
 
   def rendezvous_barrier(self):
