@@ -575,7 +575,7 @@ def run(args):
 
     print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
     # invoke writer in paralell
-    pool = mp.Pool(processes=CPU_COUNT)
+    pool = mp.Pool(processes=CORE_COUNT)
     for _ in tqdm(pool.imap_unordered(_writer_invoke,  invoke_args_range), total=args['requests']):
       pass
     pool.close()
@@ -665,7 +665,7 @@ def gather(args):
           # index by i so we avoid duplicate results
           e = {
             'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
-            'concistent_read': int(item['concistent_read']), # 0 - False, 1 - True
+            'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             #
             'post_read_at': float(item['post_read_at']),
             'sent_at': float(item['sent_at']),
@@ -717,7 +717,7 @@ def gather(args):
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
       'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
-      '%_INCONSISTENCIES': len(df.query('concistent_read == 0')) / float(len(df)),
+      '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
       'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
     }
 
@@ -766,7 +766,7 @@ REGIONS = {
   'sg': 'ap-southeast-1',
 }
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
-CPU_COUNT = mp.cpu_count()
+CORE_COUNT = mp.cpu_count()
 NOTIFICATION_KEY_LEN = 10
 PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
 
