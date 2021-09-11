@@ -17,7 +17,7 @@ from botocore.client import Config
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
-ANTIPODE_RENDEZVOUS_ENABLED = bool(os.environ['ANTIPODE_RENDEZVOUS_ENABLED'])
+ANTIPODE_RENDEZVOUS_ENABLED = bool(int(os.environ['ANTIPODE_RENDEZVOUS_ENABLED']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
