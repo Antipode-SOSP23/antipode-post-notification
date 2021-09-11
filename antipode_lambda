@@ -139,6 +139,7 @@ def _build_service(role, args):
               WRITER_REGION: {{ writer_region }}
               READER_REGION: {{ reader_region }}
               ANTIPODE: {{ antipode_enabled }}
+              ANTIPODE_RENDEZVOUS_ENABLED: {{ antipode_rendezvous_enabled }}
               DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
@@ -153,6 +154,7 @@ def _build_service(role, args):
     'writer_region': args['writer'],
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
+    'antipode_rendezvous_enabled': int(False),
     'delay_ms': args['delay'],
     # vpc configurations if needed
     'vpc_required': app_args['vpc_required'],

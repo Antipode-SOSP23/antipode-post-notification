@@ -22,13 +22,15 @@ class AntipodeS3:
     self.s3_client.put_object(
         Bucket=self.bucket,
         Key=self._bucket_key(c._id),
-        Body='', # we could add more info as json
+        # TODO: add FULL cscope
+        Body='',
       )
 
-  def cscope_barrier(self, cscope_id, operations):
+  def retrieve_cscope(self, cscope_id):
     # read cscope_id
     while True:
       try:
+        # TODO: should return the cscope written
         self.s3_client.head_object(Bucket=self.bucket, Key=self._bucket_key(str(cscope_id)))
         break
       except botocore.exceptions.ClientError as e:
@@ -37,6 +39,8 @@ class AntipodeS3:
           pass
         else:
           raise
+
+  def cscope_barrier(self, operations):
     # read post operations
     for op in operations:
       # op: (BUCKET_NAME, <KEY>)

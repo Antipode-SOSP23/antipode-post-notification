@@ -15,15 +15,18 @@ class AntipodeDynamo:
   def cscope_close(self, c):
     # write post
     self.antipode_table.put_item(Item={
+        # TODO: add FULL cscope
         'cid': str(c._id),
       })
 
-  def cscope_barrier(self, cscope_id, operations):
+  def retrieve_cscope(self, cscope_id):
     # read cscope_id
     while True:
       if 'Item' in self.antipode_table.get_item(Key={'cid': str(cscope_id)}):
+        # TODO: should return the cscope written
         break
 
+  def cscope_barrier(self, operations):
     # read post operations
     for op in operations:
       op_table = self.conn.Table(op[0])

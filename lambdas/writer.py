@@ -14,6 +14,7 @@ import importlib
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+ANTIPODE_RENDEZVOUS_ENABLED = bool(os.environ['ANTIPODE_RENDEZVOUS_ENABLED'])
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
@@ -29,9 +30,9 @@ def lambda_handler(event, context):
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_bridge = getattr(importlib.import_module(POST_STORAGE), 'antipode_bridge')
 
+  # init Antipode service registry and request context
   if ANTIPODE:
     import antipode as ant
-    # init service registry
     SERVICE_REGISTRY = {
       'post_storage': antipode_bridge('post_storage', 'writer')
     }
@@ -42,7 +43,8 @@ def lambda_handler(event, context):
 
   if ANTIPODE:
     cscope.append('post_storage', op)
-    cscope.close()
+    if ANTIPODE_RENDEZVOUS_ENABLED:
+      cscope.close()
     event['cscope'] = cscope.to_json()
 
   if DELAY_MS > 0:

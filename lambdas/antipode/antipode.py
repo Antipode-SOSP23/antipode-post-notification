@@ -1,3 +1,4 @@
+import os
 import uuid
 import json
 
@@ -22,9 +23,15 @@ class Cscope:
     for storage,_ in self.c['operations'].items():
       self.service_registry[storage].cscope_close(self)
 
+  def rendezvous_barrier(self):
+    for storage in self.c['rendezvous_points']:
+      # gets the scope stored at each rendezvous_points
+      # calls barrier on each rendezvous point
+      self.service_registry[storage].retrieve_cscope(self._id).barrier()
+
   def barrier(self):
     for storage,operations in self.c['operations'].items():
-      self.service_registry[storage].cscope_barrier(self._id, operations)
+      self.service_registry[storage].cscope_barrier(operations)
 
   # getters
   @property

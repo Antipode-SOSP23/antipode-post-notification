@@ -17,6 +17,7 @@ from botocore.client import Config
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+ANTIPODE_RENDEZVOUS_ENABLED = bool(os.environ['ANTIPODE_RENDEZVOUS_ENABLED'])
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
@@ -54,8 +55,11 @@ def lambda_handler(event, context):
     }
     # deserialize cscope
     cscope = ant.Cscope.from_json(SERVICE_REGISTRY, event['cscope'])
-    # barrier and set eval
-    cscope.barrier()
+    if ANTIPODE_RENDEZVOUS_ENABLED:
+      cscope.rendezvous_barrier()
+    else:
+      cscope.barrier()
+
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   # read post and fill evaluation

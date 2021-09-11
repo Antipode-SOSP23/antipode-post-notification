@@ -12,16 +12,19 @@ class AntipodeCache:
     return f"cscope.{cid}"
 
   def cscope_close(self, c):
-    # we could add more info as json here
+    # TODO: add FULL cscope
     self.conn.set(self._cscope_key(c._id), '')
 
-  def cscope_barrier(self, cscope_id, operations):
+  def retrieve_cscope(self, cscope_id):
     # read cscope_id
     while True:
       if self.conn.get(self._cscope_key(cscope_id)) is None:
         print(f"[RETRY] Read {self._cscope_key(cscope_id)}", flush=True)
       else:
+        # TODO: should return the cscope written
         break
+
+  def cscope_barrier(self, operations):
     # read post operations
     for op in operations:
       # op: (<KEY>)
