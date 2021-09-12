@@ -471,9 +471,9 @@ def clean__dynamo():
       # delete items per page
       page = table.scan(ProjectionExpression=expression_projection, ExpressionAttributeNames=expression_attributes)
       with table.batch_writer() as batch:
-        while page["Count"] > 0:
+        while page['Count'] > 0:
           # Delete items in batches
-          for item_keys in page["Items"]:
+          for item_keys in page['Items']:
             batch.delete_item(Key=item_keys)
           # Fetch the next page
           if 'LastEvaluatedKey' in page:
@@ -581,10 +581,14 @@ def run(args):
     print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
     # invoke writer in paralell
     pool = mp.Pool(processes=CORE_COUNT)
-    for _ in tqdm(pool.imap_unordered(_writer_invoke,  invoke_args_range), total=args['requests']):
-      pass
-    pool.close()
-    pool.join()
+    try:
+      for _ in tqdm(pool.imap_unordered(_writer_invoke,  invoke_args_range), total=args['requests']):
+        pass
+    except KeyboardInterrupt:
+      pool.terminate()
+    finally:
+      pool.join()
+      pool.close()
 
     # save in last the latencies for each request
     _put_last('latencies', dict(latencies))
@@ -637,7 +641,7 @@ def gather(args):
         if num_messages >= num_requests:
           break
         else:
-          time.sleep((num_requests-num_messages)/1000.0)
+          time.sleep((num_requests-num_messages)/100.0)
     print("Done!")
   except KeyboardInterrupt:
     print(f"[WARN] Skipping missing results {num_messages}/{num_requests}")
@@ -645,14 +649,16 @@ def gather(args):
     num_requests = num_messages
 
   print("[INFO] Gather info from SQS... ", flush=True)
-  resource_sqs = boto3.resource('sqs', region_name=reader_region)
-  eval_queue = resource_sqs.get_queue_by_name(QueueName=CONNECTION_INFO['sqs_eval']['name'])
-
   # gather results - ideally all but if we cancel tqdm we move on with the ones we have
   results = {}
   try:
     with tqdm(total=num_requests) as pbar:
       while len(results) < num_requests:
+        # We noticed expired auth problems when this loop takes longer
+        # hence we move this into the loop - gather can be slow anyways
+        resource_sqs = boto3.resource('sqs', region_name=reader_region)
+        eval_queue = resource_sqs.get_queue_by_name(QueueName=CONNECTION_INFO['sqs_eval']['name'])
+
         # fetch max 10 messages :(
         messages = eval_queue.receive_messages(MaxNumberOfMessages=10)
         # sleep if no messages returned from SQS
@@ -771,7 +777,8 @@ REGIONS = {
   'sg': 'ap-southeast-1',
 }
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
-CORE_COUNT = mp.cpu_count()
+# cap CPU cores are 8
+CORE_COUNT = min(mp.cpu_count(), 8)
 NOTIFICATION_KEY_LEN = 10
 PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
 

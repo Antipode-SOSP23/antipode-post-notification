@@ -55,6 +55,11 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Writer: SNS, Dynamo (Gateway), ec2
 
 ## Aurora Mysql Global Cluster
+- In each of the zones first create a Parameter Group
+1. Go to Dashboard, click on "Parameter Groups". Create a new one
+2. Although you can let the default parameters stay, later you might want to change max_connections
+
+- Now we setup the cluster
 1. Go to eu-central-1 zone
 2. Go to RDS dashboard and click on "Create Database"
 3. Select "Standard Create"
@@ -72,6 +77,7 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Public access: YES
     - Choose 'allow-all' VPC group
     - Database port: 3306
+    - Select the antipode-lambda parameter group
     - Disable Encryption
     - Disable Performance Insights
     - Disable Enhanced monitoring
