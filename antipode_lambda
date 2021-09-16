@@ -606,20 +606,15 @@ def gather(args):
   post_storage = _get_last('post_storage')
   notification_storage = _get_last('notification_storage')
   antipode_enabled = _get_last('antipode_enabled')
-
-  # tag for this gather
-  if args['tag'] is None:
-    args['tag'] = input('Input any tag for this gather: ')
-
-  # load build args
+  num_requests = _get_last('requests')
+  latencies = _get_last('latencies')
   reader_region = _get_last('reader_region')
+  writer_region = _get_last('writer_region')
+
   queue_url = CONNECTION_INFO['sqs_eval'][f"url__{reader_region}"]
   queue_url = CONNECTION_INFO['sqs_eval'][f"url__{reader_region}"]
 
   cli_sqs = boto3.client('sqs', region_name=reader_region)
-
-  num_requests = _get_last('requests')
-  latencies = _get_last('latencies')
   if num_requests != len(latencies):
     print("[ERROR] Mismatch between number of requests and number of available latencies!")
     exit(-1)
@@ -691,6 +686,12 @@ def gather(args):
     print("[INFO] Done!")
   except KeyboardInterrupt:
     print(f"[WARN] Skipping remaining results {len(results)}/{num_requests}")
+
+  # tag for this gather
+  if args['tag'] is None:
+    args['tag'] = f"{writer_region}-{reader_region}__{num_requests}"
+    if antipode_enabled:
+      args['tag'] = 'antipode__' + args['tag']
 
   # now we compute date over the global results and tidy up dict for dataframe
   eval_values = results.values()
