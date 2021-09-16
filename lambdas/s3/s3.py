@@ -10,13 +10,14 @@ def _bucket(role):
 
 def write_post(i,k):
   s3_client = boto3.client('s3')
-  op = (_bucket('writer'), str(k))
+  # we put to reader's bucket on the return because write post has to be read from that bucket
+  # this emulates a S3 bucket "cluster" where you can write by a single name
   s3_client.put_object(
-      Bucket=op[0],
-      Key=op[1],
+      Bucket=_bucket('writer'),
+      Key=str(k),
       Body=os.urandom(1000000),
     )
-  return op
+  return (_bucket('reader'), str(k))
 
 def read_post(k, evaluation):
   s3_client = boto3.client('s3')
