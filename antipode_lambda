@@ -753,7 +753,7 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 # post_storage METHODS:
 #   - write_post(i, k) -> op
 #   - read_post(k, evaluation)
-#   - antipode_bridge(id, role) -> AntipodeBridge
+#   - antipode_shim(id, role) -> AntipodeBridge
 #--------------
 # notification_storage METHODS:
 #   - write_notification(event)

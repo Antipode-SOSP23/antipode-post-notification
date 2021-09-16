@@ -28,13 +28,14 @@ def lambda_handler(event, context):
   # dynamically load
   write_post = getattr(importlib.import_module(POST_STORAGE), 'write_post')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
-  antipode_bridge = getattr(importlib.import_module(POST_STORAGE), 'antipode_bridge')
+  antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
+
 
   # init Antipode service registry and request context
   if ANTIPODE:
     import antipode as ant
     SERVICE_REGISTRY = {
-      'post_storage': antipode_bridge('post_storage', 'writer')
+      'post_storage': antipode_shim('post_storage', 'writer')
     }
     cscope = ant.Cscope(SERVICE_REGISTRY)
 

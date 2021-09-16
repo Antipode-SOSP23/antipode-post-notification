@@ -31,7 +31,7 @@ def read_post(k, evaluation):
       # unknnown errors raise again
       raise
 
-def antipode_bridge(id, role):
+def antipode_shim(id, role):
   import antipode_s3 as ant # this file will get copied when deploying
 
   return ant.AntipodeS3(_id=id, conn=_bucket(role))

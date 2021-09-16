@@ -6,6 +6,7 @@ import time
 
 
 REQUESTS = 1000
+#------------------------------------------
 WRITER_REGIONS = [
   'eu',
 ]
@@ -13,45 +14,45 @@ READER_REGIONS = [
   'us',
   'sg',
 ]
-
+#------------------------------------------
 POST_STORAGES = [
-  # 'mysql',
-  # 'dynamo',
+  'mysql',
+  'dynamo',
   's3',
   'cache',
 ]
 NOTIFICATION_STORAGES = [
-  # 'sns',
-  # 'dynamo',
+  'sns',
+  'dynamo',
   'mq',
 ]
-
+#------------------------------------------
 COMBINATIONS = [
   # ('eu', 'us', 'mysql', 'sns'), #✅
   # ('eu', 'us', 'dynamo', 'sns'), #✅
   # ('eu', 'us', 'cache', 'sns'), #✅
   # ('eu', 'us', 's3', 'sns'), #✅
-  # ('eu', 'us', 'mysql', 'dynamo'), #✅
-  # ('eu', 'us', 'dynamo', 'dynamo'), #✅
-  # ('eu', 'us', 'cache', 'dynamo'),
-  # ('eu', 'us', 's3', 'dynamo'),
   # ('eu', 'us', 'mysql', 'mq'),  #✅
-  ('eu', 'us', 'dynamo', 'mq'),
+  # ('eu', 'us', 'dynamo', 'mq'), #✅
   # ('eu', 'us', 'cache', 'mq'),  #✅
   # ('eu', 'us', 's3', 'mq'), #✅
-  #
-  # ('eu', 'sg', 'mysql', 'sns'),
-  # ('eu', 'sg', 'dynamo', 'sns'),
-  # ('eu', 'sg', 'cache', 'sns'),
-  # ('eu', 'sg', 's3', 'sns'),
-  # ('eu', 'sg', 'mysql', 'dynamo'),
-  # ('eu', 'sg', 'dynamo', 'dynamo'),
-  # ('eu', 'sg', 'cache', 'dynamo'),
-  # ('eu', 'sg', 's3', 'dynamo'),
-  # ('eu', 'sg', 'mysql', 'mq'),
-  # ('eu', 'sg', 'dynamo', 'mq'),
-  # ('eu', 'sg', 'cache', 'mq'),
-  # ('eu', 'sg', 's3', 'mq'),
+  # ('eu', 'us', 'mysql', 'dynamo'), #✅
+  # ('eu', 'us', 'dynamo', 'dynamo'), #✅
+  # ('eu', 'us', 'cache', 'dynamo'), #✅
+  # ('eu', 'us', 's3', 'dynamo'), #✅
+  #------------------------------------------
+  # ('eu', 'sg', 'mysql', 'sns'), #✅
+  # ('eu', 'sg', 'dynamo', 'sns'), #✅
+  # ('eu', 'sg', 'cache', 'sns'), #✅
+  # ('eu', 'sg', 's3', 'sns'), #✅
+  ('eu', 'sg', 'mysql', 'mq'), #✅ #WEIRD
+  ('eu', 'sg', 'dynamo', 'mq'), #✅
+  ('eu', 'sg', 'cache', 'mq'), #✅
+  # ('eu', 'sg', 's3', 'mq'), #✅
+  # ('eu', 'sg', 'mysql', 'dynamo'), #✅
+  # ('eu', 'sg', 'dynamo', 'dynamo'), #✅
+  # ('eu', 'sg', 'cache', 'dynamo'), #✅
+  # ('eu', 'sg', 's3', 'dynamo'), #✅
 ]
 
 antipode_lambda = local["./antipode_lambda"]

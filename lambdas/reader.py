@@ -24,7 +24,7 @@ def lambda_handler(event, context):
   # dynamically load
   parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
   read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
-  antipode_bridge = getattr(importlib.import_module(POST_STORAGE), 'antipode_bridge')
+  antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
 
   received_at = datetime.utcnow().timestamp()
 
@@ -51,7 +51,7 @@ def lambda_handler(event, context):
     import antipode as ant
     # init service registry
     SERVICE_REGISTRY = {
-      'post_storage': antipode_bridge('post_storage', 'reader')
+      'post_storage': antipode_shim('post_storage', 'reader')
     }
     # deserialize cscope
     cscope = ant.Cscope.from_json(SERVICE_REGISTRY, event['cscope'])

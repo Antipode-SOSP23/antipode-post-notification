@@ -52,7 +52,7 @@ def read_post(k, evaluation):
     # result is None if not found
     return not(result is None)
 
-def antipode_bridge(id, role):
+def antipode_shim(id, role):
   import antipode_mysql as ant # this file will get copied when deploying
 
   return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))

@@ -27,7 +27,7 @@ def read_post(k, evaluation):
   # read key of post
   return ('Item' in post_table.get_item(Key={'k': str(k)}, AttributesToGet=['k']))
 
-def antipode_bridge(id, role):
+def antipode_shim(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying
 
   return ant.AntipodeDynamo(_id=id, conn=_conn(role))

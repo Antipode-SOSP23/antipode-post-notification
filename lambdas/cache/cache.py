@@ -28,7 +28,7 @@ def read_post(k, evaluation):
   r = _conn('reader')
   return bool(r.exists(k))
 
-def antipode_bridge(id, role):
+def antipode_shim(id, role):
   import antipode_cache as ant # this file will get copied when deploying
 
   return ant.AntipodeCache(_id=id, conn=_conn(role))

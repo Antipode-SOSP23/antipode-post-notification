@@ -71,13 +71,12 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Select PRODUCTION template
     - Cluster name: 'antipode-lambda-eu'
     - Username: 'antipode' / Password: 'antipode'
-    - Choose a burstable instance class
+    - Select lowest memory optimized machine
         - Tick "Include previous generations" for older and cheaper instances
     - Do not create Multi-AZ deployment
     - Public access: YES
     - Choose 'allow-all' VPC group
     - Database port: 3306
-    - Select the antipode-lambda parameter group
     - Disable Encryption
     - Disable Performance Insights
     - Disable Enhanced monitoring
