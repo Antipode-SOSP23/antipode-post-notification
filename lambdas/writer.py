@@ -55,8 +55,9 @@ def lambda_handler(event, context):
   if DELAY_MS > 0:
     time.sleep(DELAY_MS / 1000.0)
 
-  write_notification(event)
+  # has to be before otherwise we cannot measure in the reader
   event['notification_written_at'] = datetime.utcnow().timestamp()
+  write_notification(event)
 
   # return the event and the code
   return {

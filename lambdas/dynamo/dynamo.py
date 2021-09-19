@@ -40,6 +40,9 @@ def write_notification(event):
     'k': str(event['i']),
     'v': str(event['key']),
     'client_sent_at': str(event['client_sent_at']),
+    'writer_start_at': str(event['writer_start_at']),
+    'post_written_at': str(event['post_written_at']),
+    'notification_written_at': str(event['notification_written_at']),
   }
   # if antipode is enabled we pass the scope
   if ANTIPODE:
@@ -59,6 +62,9 @@ def parse_event(event):
         'i': dynamo_event['dynamodb']['NewImage']['k']['S'],
         'key': dynamo_event['dynamodb']['NewImage']['v']['S'],
         'client_sent_at': float(dynamo_event['dynamodb']['NewImage']['client_sent_at']['S']),
+        'writer_start_at': float(dynamo_event['dynamodb']['NewImage']['writer_start_at']['S']),
+        'post_written_at': float(dynamo_event['dynamodb']['NewImage']['post_written_at']['S']),
+        'notification_written_at': float(dynamo_event['dynamodb']['NewImage']['notification_written_at']['S']),
       }
       if ANTIPODE:
         event['cscope'] = dynamo_event['dynamodb']['NewImage']['cscope']['S']
