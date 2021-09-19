@@ -30,6 +30,7 @@ def lambda_handler(event, context):
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
 
+  # start connections
 
   # init Antipode service registry and request context
   if ANTIPODE:
@@ -39,8 +40,11 @@ def lambda_handler(event, context):
     }
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
+  # mark timestamp of start of request processing - for visibility latency
+  event['writer_start_at'] = datetime.utcnow().timestamp()
+
   op = write_post(i=event['i'], k=event['key'])
-  event['sent_at'] = datetime.utcnow().timestamp()
+  event['post_written_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:
     cscope.append('post_storage', op)
@@ -52,6 +56,7 @@ def lambda_handler(event, context):
     time.sleep(DELAY_MS / 1000.0)
 
   write_notification(event)
+  event['notification_written_at'] = datetime.utcnow().timestamp()
 
   # return the event and the code
   return {

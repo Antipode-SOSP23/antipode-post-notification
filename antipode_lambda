@@ -35,7 +35,7 @@ def _generate_payload(i):
   return {
       'i': i,
       'key': key,
-      'sent_at': datetime.utcnow().timestamp()
+      'client_sent_at': datetime.utcnow().timestamp()
     }
 
 def _load_yaml(path):
@@ -673,12 +673,16 @@ def gather(args):
 
           # index by i so we avoid duplicate results
           e = {
-            'ts_notification_spent_ms': int(item['ts_notification_spent_ms']),
-            'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
-            #
-            'post_read_at': float(item['post_read_at']),
-            'sent_at': float(item['sent_at']),
+            # client
+            'client_sent_at': float(item['client_sent_at']),
             'reply_at': float(latencies[int(item['i'])]),
+            # writer
+            'writer_start_at': float(item['writer_start_at']),
+            # reader
+            'post_read_at': float(item['post_read_at']),
+            'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
+            'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
+            # 'post_written_at': int(item['post_written_at']),
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
@@ -698,16 +702,21 @@ def gather(args):
 
   # now we compute date over the global results and tidy up dict for dataframe
   eval_values = results.values()
-  first_client_sent = min(eval_values, key=lambda k: k['sent_at'])['sent_at']
+  first_client_sent = min(eval_values, key=lambda k: k['client_sent_at'])['client_sent_at']
   last_client_replied = max(eval_values, key=lambda k: k['reply_at'])['reply_at']
-  latest_post_read = max(eval_values, key=lambda k: k['post_read_at'])['post_read_at']
 
   # for each entry in dict we compute results and delete keys no longer needed
   for _,r in results.items():
-    r['latency_ms'] = int((r['reply_at'] - r['sent_at']) * 1000)
-    r['visibility_latency_ms'] = int((r['post_read_at'] - r['sent_at']) * 1000)
+    # visibility latency from the client
+    r['client_latency_ms'] = int((r['reply_at'] - r['client_sent_at']) * 1000)
+    r['client_visibility_latency_ms'] = int((r['post_read_at'] - r['client_sent_at']) * 1000)
+    # visibility latency from the proxy
+    r['writer_latency_ms'] = int((r['reply_at'] - r['writer_sent_at']) * 1000)
+    r['writer_visibility_latency_ms'] = int((r['post_read_at'] - r['writer_sent_at']) * 1000)
+
     # delete no longer needed keys
-    del r['sent_at']
+    del r['client_sent_at']
+    del r['writer_sent_at']
     del r['reply_at']
     del r['post_read_at']
 

@@ -35,11 +35,16 @@ def lambda_handler(event, context):
 
   # init evaluation dict
   evaluation = {
+    # client
     'i': event['i'],
-    'sent_at': event['sent_at'],
-    'ts_notification_spent_ms': int((received_at - event['sent_at']) * 1000),
-    'consistent_read' : 0,
+    'client_sent_at': event['client_sent_at'],
+    # writer
+    'writer_start_at': event['writer_start_at'],
+    'post_written_at': event['post_written_at'],
+    # reader
+    'notification_to_reader_spent_ms': int((received_at - event['notification_written_at']) * 1000),
     'post_read_at': None,
+    'consistent_read' : 0,
     'antipode_spent_ms': None,
   }
 
