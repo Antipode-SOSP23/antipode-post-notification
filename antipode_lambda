@@ -8,6 +8,7 @@ import sys
 import argparse
 import random
 import string
+import signal
 import multiprocessing as mp
 import boto3
 import json
@@ -533,31 +534,32 @@ def clean__cache():
 def _writer_invoke(args):
   mode, writer_region, writer_lambda_arn, latencies, i = args
   writer_client = boto3.client('lambda', region_name=writer_region)
-  try:
-    response = writer_client.invoke(
-        FunctionName=writer_lambda_arn,
-        InvocationType=mode,
-        Payload=json.dumps(_generate_payload(i)),
-      )
+  response = writer_client.invoke(
+      FunctionName=writer_lambda_arn,
+      InvocationType=mode,
+      Payload=json.dumps(_generate_payload(i)),
+    )
 
-    # save the time which we got a reply from
-    latencies[i] = datetime.utcnow().timestamp()
+  # save the time which we got a reply from
+  latencies[i] = datetime.utcnow().timestamp()
 
-    # exists if we get a 200 or 202 (for async) return code
-    status_code = response['ResponseMetadata']['HTTPStatusCode']
+  # exists if we get a 200 or 202 (for async) return code
+  status_code = response['ResponseMetadata']['HTTPStatusCode']
 
-    # replace status_code with the one frmo within the lambda
-    if status_code == 200:
-      status_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
+  # replace status_code with the one frmo within the lambda
+  if status_code == 200:
+    status_code = int(json.loads(response['Payload'].read()).get('statusCode', 500))
 
-    # now we parse the responses
-    if status_code == 200 or status_code == 202:
-      return
-    else:
-      raise Exception(f"Unknown Lambda return code: {status_code}")
-  except Exception as e:
-    print(f"[ERROR] Exception while invoking AWS Writer Lambda: {e}")
-    exit(-1)
+  # now we parse the responses
+  if status_code == 200 or status_code == 202:
+    return
+  else:
+    latencies[i] = None
+    print(f"[ERROR] Lambda {status_code} error, skipping...")
+
+def _writer_pool_init():
+  # Ignore CTRL+C in the worker process
+  signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def run(args):
   # check if experiment was cleaned and if not we ask the user if he wants to continue
@@ -571,30 +573,31 @@ def run(args):
   writer_lambda_arn = _get_last(f"writer__lambda__arn")
   mode = 'Event' if args['async'] else 'RequestResponse'
 
+  l = dict()
   with mp.Manager() as manager:
     # dict for requests latencies
     latencies = manager.dict()
-
     # build args for the invoke -- KEEP THE ORDER OF THE ARGUMENTS or adjust in the invoke method
     invoke_args_range = [ (mode, writer_region, writer_lambda_arn, latencies, i) for i in range(args['requests']) ]
 
     print(f"[INFO] Running '{post_storage}-{notification_storage}' for #{args['requests']} ... ")
     # invoke writer in paralell
-    pool = mp.Pool(processes=CORE_COUNT)
+    pool = mp.Pool(processes=CORE_COUNT, initializer=_writer_pool_init)
     try:
       for _ in tqdm(pool.imap_unordered(_writer_invoke,  invoke_args_range), total=args['requests']):
         pass
+      # remove errors from entries
+      l = { k:v for k, v in dict(latencies).items() if v is not None }
     except KeyboardInterrupt:
       pool.terminate()
     finally:
-      pool.join()
       pool.close()
+      pool.join()
 
-    # save in last the latencies for each request
-    _put_last('latencies', dict(latencies))
-
+  # save variables in last file
+  _put_last('latencies', l)
   _put_last('cleaned', False)
-  _put_last('requests', args['requests'])
+  _put_last('requests', len(l))
   print("Done!")
 
 

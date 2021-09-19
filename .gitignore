@@ -6,3 +6,5 @@ old-lambdas
 .last.yml
 deploy/*
 !deploy/.keep
+plots/*
+!plots/.keep
