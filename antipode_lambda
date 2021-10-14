@@ -595,6 +595,7 @@ def run(args):
       pool.join()
 
   # save variables in last file
+  print(f"[INFO] Saving {len(l)} requests from '{post_storage}-{notification_storage}'!")
   _put_last('latencies', l)
   _put_last('cleaned', False)
   _put_last('requests', len(l))

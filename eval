@@ -6,7 +6,7 @@ import time
 
 
 REQUESTS = 1000
-#------------------------------------------
+#--------------
 WRITER_REGIONS = [
   'eu',
 ]
@@ -14,7 +14,7 @@ READER_REGIONS = [
   'us',
   'sg',
 ]
-#------------------------------------------
+#--------------
 POST_STORAGES = [
   'mysql',
   'dynamo',
@@ -26,7 +26,7 @@ NOTIFICATION_STORAGES = [
   'dynamo',
   'mq',
 ]
-#------------------------------------------
+#--------------
 COMBINATIONS = [
   # ('eu', 'us', 'mysql', 'sns'), #✅
   # ('eu', 'us', 'dynamo', 'sns'), #✅
@@ -40,7 +40,7 @@ COMBINATIONS = [
   # ('eu', 'us', 'dynamo', 'dynamo'), #✅
   # ('eu', 'us', 'cache', 'dynamo'), #✅
   # ('eu', 'us', 's3', 'dynamo'), #✅
-  #------------------------------------------
+  #--------------
   # ('eu', 'sg', 'mysql', 'sns'), #✅
   # ('eu', 'sg', 'dynamo', 'sns'), #✅
   # ('eu', 'sg', 'cache', 'sns'), #✅

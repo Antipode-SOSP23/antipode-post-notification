@@ -20,9 +20,9 @@ RUN set -ex ;\
         ; \
     rm -rf /var/lib/apt/lists/*
 
-#-------------------
+#--------------
 # AWS & SAM Cli
-#-------------------
+#--------------
 ENV SAM_CLI_TELEMETRY=0
 RUN set -ex ;\
     cd /tmp ;\
@@ -36,9 +36,9 @@ RUN set -ex ;\
     sam --version ;\
     rm -rf /tmp/*
 
-#-------------------
+#--------------
 # Python
-#-------------------
+#--------------
 ENV PATH="/root/.local/bin:${PATH}"
 RUN set -ex ;\
     ln -s /usr/bin/python3 /usr/bin/python ;\
