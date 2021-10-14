@@ -75,14 +75,16 @@ datastores:
     # writer eu
     name__eu-central-1: mq-eu
     arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:mq-eu:b-8b026a92-1858-4a76-bc7a-7bfb25be209d
-    stomp_host__eu-central-1: b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com
+    host__eu-central-1: b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com
     # reader us
     name__us-east-1: mq-us
     arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:mq-us:b-8847288a-a3fe-4869-b3f2-6e14b7cefed3
+    host__us-east-1: b-8847288a-a3fe-4869-b3f2-6e14b7cefed3-1.mq.us-east-1.amazonaws.com
     secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa
     # reader sg
     name__ap-southeast-1: antipode-lambda-sg
     arn__ap-southeast-1: arn:aws:mq:ap-southeast-1:641424397462:broker:antipode-lambda-sg:b-20f3cf89-7725-44b0-946b-19e84c03b81e
+    host__ap-southeast-1: b-20f3cf89-7725-44b0-946b-19e84c03b81e-1.mq.ap-southeast-1.amazonaws.com
     secretmanager_arn__ap-southeast-1: arn:aws:secretsmanager:ap-southeast-1:641424397462:secret:antipode-mq-Bj2lHa
   cache:
     vpc_required: true
