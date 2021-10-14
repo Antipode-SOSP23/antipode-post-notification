@@ -530,8 +530,66 @@ def clean__s3():
   print("Done!")
 
 def clean__mq():
-  # nothing to do
-  None
+  # ref: https://alediaferia.com/2020/07/30/how-to-keep-your-amazon-mq-queues-clean/
+  from jinja2 import Environment
+  import textwrap
+  import shutil
+  from plumbum.cmd import amazonmq_cli
+
+  print("\t[INFO] Purging MQ... ", end='', flush=True)
+
+  # force docker if needed
+
+  MQ_CONN = CONNECTION_INFO['datastores']['mq']
+
+  # create config file for the brokers
+  template = """
+    broker {
+      antipode-writer {
+        web-console = "https://{{ writer_host }}:8162/admin/"
+        amqurl = "ssl://{{ writer_host }}:61617"
+        username = "{{ username }}"
+        password = "{{ password }}"
+        prompt-color = "light-blue"
+      }
+      antipode-reader {
+        web-console = "https://{{ reader_host }}:8162/admin/"
+        amqurl = "ssl://{{ reader_host }}:61617"
+        username = "{{ username }}"
+        password = "{{ password }}"
+        prompt-color = "light-blue"
+      }
+    }
+    web-console {
+      pause = 100
+      timeout = 300000
+    }
+  """
+  template_generated = Environment().from_string(template).render({
+    'writer_host': MQ_CONN[f"host__{_get_last('writer_region')}"],
+    'reader_host': MQ_CONN[f"host__{_get_last('reader_region')}"],
+    'username': MQ_CONN['user'],
+    'password': MQ_CONN['password'],
+  })
+  with open(ROOT_PATH / 'deploy' / 'mq-brokers.config', 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(template_generated).strip())
+
+  # save the commands to execute
+  with open(ROOT_PATH / 'deploy' / 'mq-purge.cmd', 'w') as f:
+    print("connect --broker antipode-writer", file=f)
+    print("purge-all-queues --force", file=f)
+    print("disconnect", file=f)
+    print("connect --broker antipode-reader", file=f)
+    print("purge-all-queues --force", file=f)
+
+  # copy file to config
+  shutil.copy(ROOT_PATH / 'deploy' / 'mq-brokers.config', '/tools/amazonmq-cli/conf/amazonmq-cli.config')
+
+  # run command hidding the output
+  (amazonmq_cli['--cmdfile', ROOT_PATH / 'deploy' / 'mq-purge.cmd'] & BG).wait()
+  print("Done!")
+
 
 def clean__cache():
   print("\t[INFO] Cleaning Redis ElastiCache... ", end='', flush=True)
