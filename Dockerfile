@@ -7,6 +7,7 @@ RUN set -ex ;\
         build-essential \
         git \
         groff \
+        activemq \
         # python
         python3 \
         python3-dev \
@@ -35,6 +36,19 @@ RUN set -ex ;\
     ./aws-sam/install ;\
     sam --version ;\
     rm -rf /tmp/*
+
+#--------------
+# amazonmq-cli
+#--------------
+ENV AMAZONMQ_CLI_VERSION='0.2.2'
+RUN set -ex ;\
+    mkdir -p /tools ;\
+    cd /tools ;\
+    wget https://github.com/antonwierenga/amazonmq-cli/releases/download/v${AMAZONMQ_CLI_VERSION}/amazonmq-cli-${AMAZONMQ_CLI_VERSION}.zip ;\
+    unzip amazonmq-cli-${AMAZONMQ_CLI_VERSION}.zip ;\
+    rm -rf amazonmq-cli-${AMAZONMQ_CLI_VERSION}.zip ;\
+    mv amazonmq-cli-${AMAZONMQ_CLI_VERSION} amazonmq-cli ;\
+    ln -s /tools/amazonmq-cli/bin/amazonmq-cli /usr/bin/amazonmq-cli
 
 #--------------
 # Python
