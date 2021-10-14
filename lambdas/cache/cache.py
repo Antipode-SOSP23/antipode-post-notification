@@ -34,5 +34,5 @@ def antipode_shim(id, role):
   return ant.AntipodeCache(_id=id, conn=_conn(role))
 
 def clean():
-  for role in ['writer', 'reader']:
-    _conn(role).flushall()
+  # only the writer has permissions to clean
+  _conn('writer').flushall()
