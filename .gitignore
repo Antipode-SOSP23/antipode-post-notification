@@ -8,3 +8,8 @@ deploy/*
 !deploy/.keep
 plots/*
 !plots/.keep
+# files for purging AWS MQ
+mq-brokers.config
+mq-purge.cmd
+spring-shell.log
+activemq-cli.log
