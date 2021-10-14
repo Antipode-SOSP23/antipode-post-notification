@@ -88,6 +88,30 @@ def _template_env_variables():
 
   return env
 
+def _is_inside_docker():
+  return os.path.isfile('/.dockerenv')
+
+def _force_docker():
+  if not _is_inside_docker():
+    import platform
+    import subprocess
+    from plumbum.cmd import docker
+
+    # if image is not built, we do it
+    if docker['images', 'antipode-lambda:latest', '--format', '"{{.ID}}"']().strip() == '':
+      os.chdir(ROOT_PATH)
+      docker['build', '-t', 'antipode-lambda:latest', '.'] & FG
+
+    args = list()
+    args.extend(['docker', 'run', '--rm', '-it',
+      # mount code volumes
+      '-v', f"{ROOT_PATH}:/app",
+      'antipode-lambda:latest'
+    ])
+    args = args + sys.argv
+    # print(' '.join(args))
+    subprocess.call(args)
+    exit()
 
 #--------------
 # BUILD
