@@ -3,29 +3,15 @@
 from pathlib import Path
 from pprint import pprint
 import os
-import shutil
 import sys
 import argparse
 import random
 import string
-import signal
 import multiprocessing as mp
-import boto3
 import json
 from datetime import datetime
 from plumbum import FG, BG
 import time
-from tqdm import tqdm
-import click
-import pandas as pd
-from pathlib import Path
-import shutil
-
-# pd.set_option('display.float_format', lambda x: '%.3f' % x)
-pd.set_option('display.html.table_schema', True)
-pd.set_option('display.precision', 2)
-pd.set_option('max_columns', None)
-pd.set_option('display.expand_frame_repr', False)
 
 #--------------
 # HELPERS
@@ -120,6 +106,8 @@ def _build_service(role, args):
   from jinja2 import Environment
   import textwrap
   from plumbum.cmd import sam
+  import boto3
+  import shutil
 
   app_args = _build_app_args(args['post_storage'], args['notification_storage'])
   lambda_name = app_args[role]['lambda_name']
@@ -354,6 +342,7 @@ def reader_event_source__mq():
 # CLEAN
 #--------------
 def _clean_sqs_eval():
+  import boto3
   from botocore.exceptions import ClientError
 
   try:
@@ -380,6 +369,8 @@ def _clean_service(role):
   print("Done!")
 
 def clean(args):
+  _force_docker()
+
   # it actually means neither writer or reader got selected
   # hence we execute both
   if args['strong'] and (not args['writer'] and not args['reader']):
@@ -475,6 +466,8 @@ def clean__sns():
   None
 
 def clean__dynamo():
+  import boto3
+
   print("\t[INFO] Truncating Dynamo table... ", end='', flush=True)
   DYNAMO_CONN = CONNECTION_INFO['datastores']['dynamo']
   for zone in [_get_last('writer_region'), _get_last('reader_region')]:
@@ -518,6 +511,8 @@ def clean__dynamo():
   print("Done!")
 
 def clean__s3():
+  import boto3
+
   print("\t[INFO] Cleaning S3 buckets... ", end='', flush=True)
   s3_resource = boto3.resource('s3')
   S3_CONN = CONNECTION_INFO['datastores']['s3']
@@ -592,6 +587,8 @@ def clean__mq():
 
 
 def clean__cache():
+  import boto3
+
   print("\t[INFO] Cleaning Redis ElastiCache... ", end='', flush=True)
   # only way to clean cache is from within the VPC
   # hence we trigger a Lambda with a specific clean action tag
@@ -614,12 +611,15 @@ def clean__cache():
 # RUN
 #--------------
 def _writer_invoke(args):
+  import boto3
+
   mode, writer_region, writer_lambda_arn, latencies, i = args
+  payload = _generate_payload(i)
   writer_client = boto3.client('lambda', region_name=writer_region)
   response = writer_client.invoke(
       FunctionName=writer_lambda_arn,
       InvocationType=mode,
-      Payload=json.dumps(_generate_payload(i)),
+      Payload=json.dumps(payload),
     )
 
   # save the time which we got a reply from
@@ -640,10 +640,14 @@ def _writer_invoke(args):
     print(f"[ERROR] Lambda {status_code} error, skipping...")
 
 def _writer_pool_init():
+  import signal
   # Ignore CTRL+C in the worker process
   signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def run(args):
+  from tqdm import tqdm
+  import click
+
   # check if experiment was cleaned and if not we ask the user if he wants to continue
   if not _get_last('cleaned') and not click.confirm('[WARN] The experiment was not cleaned before hand! You might gather old results afterwards. Do you still want to continue?', default=False):
     exit(-1)
@@ -688,6 +692,10 @@ def run(args):
 # GATHER
 #--------------
 def gather(args):
+  from tqdm import tqdm
+  import pandas as pd
+  import boto3
+
   # load build vars
   post_storage = _get_last('post_storage')
   notification_storage = _get_last('notification_storage')
@@ -794,12 +802,12 @@ def gather(args):
     r['client_latency_ms'] = int((r['reply_at'] - r['client_sent_at']) * 1000)
     r['client_visibility_latency_ms'] = int((r['post_read_at'] - r['client_sent_at']) * 1000)
     # visibility latency from the proxy
-    r['writer_latency_ms'] = int((r['reply_at'] - r['writer_sent_at']) * 1000)
-    r['writer_visibility_latency_ms'] = int((r['post_read_at'] - r['writer_sent_at']) * 1000)
+    r['writer_latency_ms'] = int((r['reply_at'] - r['writer_start_at']) * 1000)
+    r['writer_visibility_latency_ms'] = int((r['post_read_at'] - r['writer_start_at']) * 1000)
 
     # delete no longer needed keys
     del r['client_sent_at']
-    del r['writer_sent_at']
+    del r['writer_start_at']
     del r['reply_at']
     del r['post_read_at']
 
@@ -829,6 +837,11 @@ def gather(args):
     }
 
   # save the pandas describe
+  # pd.set_option('display.float_format', lambda x: '%.3f' % x)
+  pd.set_option('display.html.table_schema', True)
+  pd.set_option('display.precision', 2)
+  pd.set_option('max_columns', None)
+  pd.set_option('display.expand_frame_repr', False)
   with open(info_path, 'w') as f:
     for tag,v in eval_tags.items():
       print(f"[{tag}] {v}", file=f)
@@ -882,7 +895,6 @@ PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
 # CMD LINE
 #--------------
 if __name__ == '__main__':
-
   # parse arguments
   main_parser = argparse.ArgumentParser()
 
