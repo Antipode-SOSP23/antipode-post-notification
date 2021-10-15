@@ -83,9 +83,10 @@ def _force_docker():
     import subprocess
     from plumbum.cmd import docker
 
+    os.chdir(ROOT_PATH)
+
     # if image is not built, we do it
     if docker['images', 'antipode-lambda:latest', '--format', '"{{.ID}}"']().strip() == '':
-      os.chdir(ROOT_PATH)
       docker['build', '-t', 'antipode-lambda:latest', '.'] & FG
 
     args = list()
@@ -94,6 +95,9 @@ def _force_docker():
       '-v', f"{ROOT_PATH}:/app",
       'antipode-lambda:latest'
     ])
+    # force first argument to be a relative path -- important for plumbum local exec
+    sys.argv[0] = './antipode_lambda'
+    # merge docker args with original args
     args = args + sys.argv
     # print(' '.join(args))
     subprocess.call(args)
