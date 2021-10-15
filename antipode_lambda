@@ -139,7 +139,7 @@ def _build_service(role, args):
           Runtime: python3.7
           Description: 'Antipode Lambda - {{ post_storage }}<>{{ notification_storage }} - {{ role }}'
           MemorySize: 128
-          Timeout: 90
+          Timeout: {{ lambda_timeout }}
           Role: {{ iam_lambda_admin_role_arn }}
           {% if vpc_required %}
           VpcConfig:
@@ -165,6 +165,7 @@ def _build_service(role, args):
   template_generated = Environment().from_string(template).render({
     'role': role,
     'lambda_name': lambda_name,
+    'lambda_timeout': LAMBDA_TIMEOUT_SECONDS,
     'iam_lambda_admin_role_arn': CONNECTION_INFO['iam_lambda_admin_role_arn'],
     'post_storage': args['post_storage'],
     'notification_storage': args['notification_storage'],
@@ -248,6 +249,7 @@ def build(args):
     args['antipode'] = True
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
+  _put_last('delay', args['delay'])
   _put_last('post_storage', args['post_storage'])
   _put_last('notification_storage', args['notification_storage'])
   # replace macro region with specific region
@@ -705,6 +707,7 @@ def gather(args):
   notification_storage = _get_last('notification_storage')
   antipode_enabled = _get_last('antipode_enabled')
   num_requests = _get_last('requests')
+  delay = _get_last('delay')
   latencies = _get_last('latencies')
   reader_region = _get_last('reader_region')
   writer_region = _get_last('writer_region')
@@ -791,7 +794,7 @@ def gather(args):
 
   # tag for this gather
   if args['tag'] is None:
-    args['tag'] = f"{writer_region}-{reader_region}__{num_requests}"
+    args['tag'] = f"{writer_region}-{reader_region}__{num_requests}__delay-{delay}ms"
     if antipode_enabled:
       args['tag'] = 'antipode__' + args['tag']
 
@@ -889,6 +892,7 @@ REGIONS = {
   'us': 'us-east-1',
   'sg': 'ap-southeast-1',
 }
+LAMBDA_TIMEOUT_SECONDS = 300
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
 # cap CPU cores are 8
 CORE_COUNT = min(mp.cpu_count(), 8)
@@ -939,6 +943,11 @@ if __name__ == '__main__':
     # check if the number of requests is bigger than the range of notification keys available
     if len(str(args['requests'])) > NOTIFICATION_KEY_LEN:
       main_parser.error(f"Maximum allowed key length of {NOTIFICATION_KEY_LEN} - {len(str(args['requests']))} given. Please edit this value.")
+
+  if command == 'build':
+    # check if the number of requests is bigger than the range of notification keys available
+    if args['delay'] > (LAMBDA_TIMEOUT_SECONDS * 1000.0):
+      main_parser.error(f"Delay value bigger than lambda timeout {LAMBDA_TIMEOUT_SECONDS}s.")
 
   # call parser method dynamically
   getattr(sys.modules[__name__], command)(args)
