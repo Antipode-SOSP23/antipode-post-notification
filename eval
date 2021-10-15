@@ -4,7 +4,6 @@ from plumbum import FG, BG
 from plumbum import local
 import time
 
-
 REQUESTS = 1000
 #--------------
 WRITER_REGIONS = [
@@ -26,61 +25,66 @@ NOTIFICATION_STORAGES = [
   'dynamo',
   'mq',
 ]
+
 #--------------
-COMBINATIONS = [
-  # ('eu', 'us', 'mysql', 'sns'), #✅
-  # ('eu', 'us', 'dynamo', 'sns'), #✅
-  # ('eu', 'us', 'cache', 'sns'), #✅
-  # ('eu', 'us', 's3', 'sns'), #✅
-  # ('eu', 'us', 'mysql', 'mq'),  #✅
-  # ('eu', 'us', 'dynamo', 'mq'), #✅
-  # ('eu', 'us', 'cache', 'mq'),  #✅
-  # ('eu', 'us', 's3', 'mq'), #✅
-  # ('eu', 'us', 'mysql', 'dynamo'), #✅
-  # ('eu', 'us', 'dynamo', 'dynamo'), #✅
-  # ('eu', 'us', 'cache', 'dynamo'), #✅
-  # ('eu', 'us', 's3', 'dynamo'), #✅
+COMBINATIONS = {
+  # ('eu', 'us', 'mysql', 'sns')    : [ 0 ],    #✅
+  # ('eu', 'us', 'dynamo','sns')    : [ 0 ],    #✅
+  # ('eu', 'us', 'cache', 'sns')    : [ 0 ],    #✅
+  # ('eu', 'us', 's3',    'sns')    : [ 0 ],    #✅
+  # ('eu', 'us', 'mysql', 'mq')     : [ 0 ],    #✅
+  # ('eu', 'us', 'dynamo','mq')     : [ 0 ],    #✅
+  # ('eu', 'us', 'cache', 'mq')     : [ 0 ],    #✅
+  # ('eu', 'us', 's3',    'mq')     : [ 0 ],    #✅
+  # ('eu', 'us', 'mysql', 'dynamo') : [ 0 ],    #✅
+  # ('eu', 'us', 'dynamo','dynamo') : [ 0 ],    #✅
+  # ('eu', 'us', 'cache', 'dynamo') : [ 0 ],    #✅
+  # ('eu', 'us', 's3',    'dynamo') : [ 0 ],    #✅
   #--------------
-  # ('eu', 'sg', 'mysql', 'sns'), #✅
-  # ('eu', 'sg', 'dynamo', 'sns'), #✅
-  # ('eu', 'sg', 'cache', 'sns'), #✅
-  # ('eu', 'sg', 's3', 'sns'), #✅
-  ('eu', 'sg', 'mysql', 'mq'), #✅ #WEIRD
-  ('eu', 'sg', 'dynamo', 'mq'), #✅
-  ('eu', 'sg', 'cache', 'mq'), #✅
-  # ('eu', 'sg', 's3', 'mq'), #✅
-  # ('eu', 'sg', 'mysql', 'dynamo'), #✅
-  # ('eu', 'sg', 'dynamo', 'dynamo'), #✅
-  # ('eu', 'sg', 'cache', 'dynamo'), #✅
-  # ('eu', 'sg', 's3', 'dynamo'), #✅
-]
+  # ('eu', 'sg', 'mysql', 'sns')    : [ 0 ],    #✅
+  # ('eu', 'sg', 'dynamo','sns')    : [ 0 ],    #✅
+  # ('eu', 'sg', 'cache', 'sns')    : [ 0 ],    #✅
+  # ('eu', 'sg', 's3',    'sns')    : [ 0 ],    #✅
+  # ('eu', 'sg', 'mysql', 'mq')     : [ 0 ],    #✅
+  # ('eu', 'sg', 'dynamo','mq')     : [ 0 ],    #✅
+  # ('eu', 'sg', 'cache', 'mq')     : [ 0 ],    #✅
+  # ('eu', 'sg', 's3',    'mq')     : [ 0 ],    #✅
+  # ('eu', 'sg', 'mysql', 'dynamo') : [ 0 ],    #✅
+  # ('eu', 'sg', 'dynamo','dynamo') : [ 0 ],    #✅
+  # ('eu', 'sg', 'cache', 'dynamo') : [ 0 ],    #✅
+  # ('eu', 'sg', 's3',    'dynamo') : [ 0 ],    #✅
+  #--------------
+  ('eu', 'us', 's3',    'dynamo') : [ 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800 ],
+}
 
 antipode_lambda = local["./antipode_lambda"]
-for writer_region, reader_region, post_storage, notification_storage in COMBINATIONS:
+for (writer_region, reader_region, post_storage, notification_storage),delays in COMBINATIONS.items():
   print('[INFO] New deployment starting:')
   print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
   print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}\n")
 
-  antipode_lambda['build',
-      '--post-storage', post_storage,
-      '--notification-storage', notification_storage,
-      '--writer', writer_region,
-      '--reader', reader_region,
-    ] & FG
+  for delay in delays:
+    antipode_lambda['build',
+        '--post-storage', post_storage,
+        '--notification-storage', notification_storage,
+        '--writer', writer_region,
+        '--reader', reader_region,
+        '--delay', delay,
+      ] & FG
 
-  # preemptive clean just to make sure everything is indeed clean
-  antipode_lambda['clean'] & FG
+    # preemptive clean just to make sure everything is indeed clean
+    antipode_lambda['clean'] & FG
 
-  # main culprit of this sleep is DYNAMO
-  time.sleep(60)
+    # main culprit of this sleep is DYNAMO
+    time.sleep(60)
 
-  antipode_lambda['run',
-      '--requests', REQUESTS,
-    ] & FG
+    antipode_lambda['run',
+        '--requests', REQUESTS,
+      ] & FG
 
-  antipode_lambda['gather',
-      '-t', f"{writer_region}-{reader_region}__{REQUESTS}",
-    ] & FG
+    antipode_lambda['gather',
+        '-t', f"{writer_region}-{reader_region}__{REQUESTS}__delay-{delay}ms",
+      ] & FG
 
   antipode_lambda['clean', '--strong'] & FG
   print('\n[INFO] Done!')
