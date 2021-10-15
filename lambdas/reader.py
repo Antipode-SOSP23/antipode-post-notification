@@ -42,6 +42,7 @@ def lambda_handler(event, context):
     'writer_start_at': event['writer_start_at'],
     'post_written_at': event['post_written_at'],
     # reader
+    'reader_received_at': received_at,
     'notification_to_reader_spent_ms': int((received_at - event['notification_written_at']) * 1000),
     'post_read_at': None,
     'consistent_read' : 0,

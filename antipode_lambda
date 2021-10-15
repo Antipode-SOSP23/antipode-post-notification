@@ -777,6 +777,7 @@ def gather(args):
             # writer
             'writer_start_at': float(item['writer_start_at']),
             # reader
+            'reader_received_at': float(item['reader_received_at']),
             'post_read_at': float(item['post_read_at']),
             'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
