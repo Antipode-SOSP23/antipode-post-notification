@@ -16,6 +16,9 @@ import time
 #--------------
 # HELPERS
 #--------------
+def _dict_reverse_lookup(d, v):
+  return d.keys()[d.values().index(v)]
+
 def _generate_payload(i):
   key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=NOTIFICATION_KEY_LEN - len(str(i)) - 1))
   return {
@@ -501,6 +504,7 @@ def clean__dynamo():
             batch.delete_item(Key=item_keys)
           # Fetch the next page
           if 'LastEvaluatedKey' in page:
+            time.sleep(3) # to avoid throttling
             page = table.scan(
                 ProjectionExpression=expression_projection,
                 ExpressionAttributeNames=expression_attributes,
@@ -795,7 +799,7 @@ def gather(args):
 
   # tag for this gather
   if args['tag'] is None:
-    args['tag'] = f"{writer_region}-{reader_region}__{num_requests}__delay-{delay}ms"
+    args['tag'] = f"{_dict_reverse_lookup(REGIONS, writer_region)}-{_dict_reverse_lookup(REGIONS, reader_region)}__{num_requests}__delay-{delay}ms"
     if antipode_enabled:
       args['tag'] = 'antipode__' + args['tag']
 
