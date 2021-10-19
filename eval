@@ -54,7 +54,7 @@ COMBINATIONS = {
   # ('eu', 'sg', 'cache', 'dynamo') : [ 0 ],    #✅
   # ('eu', 'sg', 's3',    'dynamo') : [ 0 ],    #✅
   #--------------
-  ('eu', 'us', 's3',    'dynamo') : [ 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800 ],
+  ('eu', 'us', 'dynamo',    'sns') : [ 750, 1250, 1750, 2000 ],
 }
 
 antipode_lambda = local["./antipode_lambda"]
@@ -72,10 +72,9 @@ for (writer_region, reader_region, post_storage, notification_storage),delays in
         '--delay', delay,
       ] & FG
 
-    # preemptive clean just to make sure everything is indeed clean
+    # preemptive clean just to make sure everything is indeed cleaned
     antipode_lambda['clean'] & FG
-
-    # main culprit of this sleep is DYNAMO
+    # main culprit of this sleep is mostly DYNAMO
     time.sleep(60)
 
     antipode_lambda['run',
