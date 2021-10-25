@@ -100,7 +100,7 @@ def delay_vs_per_inconsistencies__plot():
   sns.set_theme(style='ticks')
   plt.figure(figsize=(4,3))
 
-  post_storage = 'dynamo'
+  post_storage = 's3'
   notification_storage = 'sns'
   writer_region = 'eu'
   reader_region = 'us'

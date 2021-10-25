@@ -504,7 +504,7 @@ def clean__dynamo():
             batch.delete_item(Key=item_keys)
           # Fetch the next page
           if 'LastEvaluatedKey' in page:
-            time.sleep(3) # to avoid throttling
+            time.sleep(4) # to avoid throttling
             page = table.scan(
                 ProjectionExpression=expression_projection,
                 ExpressionAttributeNames=expression_attributes,
