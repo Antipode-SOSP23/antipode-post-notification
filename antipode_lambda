@@ -224,9 +224,9 @@ def _build_service(role, args):
   # Due to bug with SSL we comment this
   # sam['validate', '--region', region] & FG
 
-  # DUE TO THIS BUG WE HAVE TO USE THIS --use-container FLAG -.-
-  # https://github.com/aws/aws-lambda-builders/issues/229
-  sam['build', '--use-container'] & FG
+  # If any bug happens try this flag: --use-container
+  # originally found due to this bug: https://github.com/aws/aws-lambda-builders/issues/229
+  sam['build'] & FG
   sam['deploy',
       '--region', region,
       '--stack-name', stack_name,
@@ -249,6 +249,8 @@ def _build_service(role, args):
   os.chdir(ROOT_PATH)
 
 def build(args):
+  _force_docker()
+
   # enable antipode in both scenarios
   if args['antipode_rendezvous']:
     args['antipode'] = True
