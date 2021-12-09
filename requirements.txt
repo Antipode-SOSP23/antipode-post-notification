@@ -6,3 +6,5 @@ plumbum
 jinja2
 tqdm
 click
+matplotlib
+seaborn

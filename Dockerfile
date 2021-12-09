@@ -70,6 +70,8 @@ RUN set -ex ;\
         jinja2 \
         tqdm \
         click \
+        matplotlib \
+        seaborn \
         ;\
     # make sure nothing is on pip cache folder
     rm -rf ~/.cache/pip/
