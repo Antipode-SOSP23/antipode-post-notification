@@ -66,17 +66,21 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Engine type: Amazon Aurora
     - MySQL compatibility
     - Provisioned
-    - Single Master
+    - Replication features: Single Master
     - Select a version that supports "Global Database" feature
     - Select PRODUCTION template
-    - Cluster name: 'antipode-lambda-eu'
-    - Username: 'antipode' / Password: 'antipode'
+    - DB cluster identifier: 'antipode-lambda-eu'
+    - Credentials:
+        - Master Username: 'antipode'
+        - Master Password: 'antipode'
     - Select lowest memory optimized machine
         - Tick "Include previous generations" for older and cheaper instances
     - Do not create Multi-AZ deployment
+    - Choose default VPC
     - Public access: YES
     - Choose 'allow-all' VPC group
-    - Database port: 3306
+    - Additional configuration:
+        - Database port: 3306
     - Disable Encryption
     - Disable Performance Insights
     - Disable Enhanced monitoring
@@ -85,6 +89,7 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 4. Wait for all the instances to be created
 5. Select the top level "Global Database". Click on Actions and "Add AWS region". You will get to a "Add Region" panel where you can setup the new replica:
     - Secondary region: <region_name>
+    - Global Cluster name: antipode-lambda
     - Select lowest memory optimized machine
     - Do not create multi-az deployment
     - Select the default VPC
