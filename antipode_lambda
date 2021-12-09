@@ -81,30 +81,32 @@ def _is_inside_docker():
   return os.path.isfile('/.dockerenv')
 
 def _force_docker():
-  if not _is_inside_docker():
-    import platform
-    import subprocess
-    from plumbum.cmd import docker
+  if _is_inside_docker():
+    return
 
-    os.chdir(ROOT_PATH)
+  import platform
+  import subprocess
+  from plumbum.cmd import docker
 
-    # if image is not built, we do it
-    if docker['images', 'antipode-lambda:latest', '--format', '"{{.ID}}"']().strip() == '':
-      docker['build', '-t', 'antipode-lambda:latest', '.'] & FG
+  os.chdir(ROOT_PATH)
 
-    args = list()
-    args.extend(['docker', 'run', '--rm', '-it',
-      # mount code volumes
-      '-v', f"{ROOT_PATH}:/app",
-      'antipode-lambda:latest'
-    ])
-    # force first argument to be a relative path -- important for plumbum local exec
-    sys.argv[0] = './antipode_lambda'
-    # merge docker args with original args
-    args = args + sys.argv
-    # print(' '.join(args))
-    subprocess.call(args)
-    exit()
+  # if image is not built, we do it
+  if bool(int(os.environ.get('REBUILD_DOCKER_IMAGE',0))) or docker['images', 'antipode-lambda:latest', '--format', '"{{.ID}}"']().strip() == '':
+    docker['build', '--no-cache', '-t', 'antipode-lambda:latest', '.'] & FG
+
+  args = list()
+  args.extend(['docker', 'run', '--rm', '-it',
+    # mount code volumes
+    '-v', f"{ROOT_PATH}:/app",
+    'antipode-lambda:latest'
+  ])
+  # force first argument to be a relative path -- important for plumbum local exec
+  sys.argv[0] = './antipode_lambda'
+  # merge docker args with original args
+  args = args + sys.argv
+  # print(' '.join(args))
+  subprocess.call(args)
+  exit()
 
 #--------------
 # BUILD
