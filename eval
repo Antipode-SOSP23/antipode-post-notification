@@ -54,7 +54,9 @@ COMBINATIONS = {
   # ('eu', 'sg', 'cache', 'dynamo') : [ 0 ],    #✅
   # ('eu', 'sg', 's3',    'dynamo') : [ 0 ],    #✅
   #--------------
-  ('eu', 'us', 's3',    'sns') : [ 60000, 22500, 25000, 35000 ],
+  # ('eu', 'us', 'cache',    'sns') : [ 1100, 1200, 1300, 1400, 1500 ],
+  # ('eu', 'us', 'mysql',    'sns') : [ 1100, 1200, 1300, 1400, 1500 ],
+  ('eu', 'us', 's3',       'sns') : [ 22500, 25000, 30000, 35000 ],
 }
 
 antipode_lambda = local["./antipode_lambda"]

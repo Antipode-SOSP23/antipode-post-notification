@@ -901,7 +901,7 @@ REGIONS = {
   'us': 'us-east-1',
   'sg': 'ap-southeast-1',
 }
-LAMBDA_TIMEOUT_SECONDS = 300
+LAMBDA_TIMEOUT_SECONDS = 900
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
 # cap CPU cores are 8
 CORE_COUNT = min(mp.cpu_count(), 8)

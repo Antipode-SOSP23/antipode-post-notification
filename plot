@@ -98,41 +98,60 @@ def visibility_latency_overhead__plot():
 def delay_vs_per_inconsistencies__plot():
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.figure(figsize=(4,3))
+  plt.figure(figsize=(8,6))
 
-  post_storage = 's3'
-  notification_storage = 'sns'
+  combinations = [
+    { 'post_storage': 's3',     'notification_storage': 'sns' },
+    { 'post_storage': 'dynamo', 'notification_storage': 'sns' },
+    { 'post_storage': 'cache',  'notification_storage': 'sns' },
+    { 'post_storage': 'mysql',  'notification_storage': 'sns' },
+  ]
   writer_region = 'eu'
   reader_region = 'us'
   num_requests = 1000
 
   # Using [0-9] pattern
   data = {}
-  pattern= str(ROOT_PATH / 'gather' / f"{post_storage}-{notification_storage}" / f"{writer_region}-{reader_region}__{num_requests}__delay-*")
-  for path in glob.glob(pattern):
-    delay_ms = int(re.search(r'delay-([0-9]*)ms', path).group(1))
+  for c in combinations:
+    post_storage = c['post_storage']
+    notification_storage = c['notification_storage']
+    combination = f"{post_storage}-{notification_storage}"
 
-    # open traces.info file
-    per_inconsistencies = None
-    with open(Path(path) / 'traces.info', 'r') as f:
-      for line in f:
-        if line.startswith('[%_INCONSISTENCIES]'):
-          per_inconsistencies = float(line.split(' ')[1])
+    pattern= str(ROOT_PATH / 'gather' / combination / f"{writer_region}-{reader_region}__{num_requests}__delay-*")
+    for path in glob.glob(pattern):
+      delay_ms = int(re.search(r'delay-([0-9]*)ms', path).group(1))
 
-    # write data entry
-    if delay_ms not in data:
-      data[delay_ms] = []
-    data[delay_ms].append(per_inconsistencies)
+      # open traces.info file
+      per_inconsistencies = None
+      with open(Path(path) / 'traces.info', 'r') as f:
+        for line in f:
+          if line.startswith('[%_INCONSISTENCIES]'):
+            per_inconsistencies = float(line.split(' ')[1])
+
+      # write data entry
+      if combination not in data:
+        data[combination] = { }
+      if delay_ms not in data[combination]:
+        data[combination][delay_ms] = []
+      data[combination][delay_ms].append(per_inconsistencies)
 
   # pick max for each entry
-  pp(data)
-  data = [ { 'delay_ms': delay_ms, 'per_inconsistencies': max(per_inconsistencies) } for delay_ms, per_inconsistencies in data.items() ]
-
+  data = [
+    {
+      'combination': combination,
+      'delay_ms': delay_ms,
+      'per_inconsistencies': min(per_inconsistencies)
+    } for combination, d in data.items() for delay_ms, per_inconsistencies in d.items()
+  ]
   # build df
-  df = pd.DataFrame.from_records(data).set_index('delay_ms').sort_index(ascending=True)
-  ax = df.plot(kind='line', logx=False)
-  ax.set_ylabel('% Inconsistencies')
-  ax.set_xlabel('Delay (ms)')
+  df = pd.DataFrame.from_records(data).sort_values(by=['combination','delay_ms'])
+  pp(df)
+
+  p = sns.lineplot(data=df, x="delay_ms", y="per_inconsistencies", hue="combination")
+  p.set(xscale='log')
+  # ax = df.plot(kind='line', logx=True)
+  # ax.set_ylabel('% Inconsistencies')
+  # ax.set_xlabel('Delay (ms)')
   # ax.set_xticks([ d['delay_ms'] for d in data])
   # plt.xticks(rotation = 90)
 
