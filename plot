@@ -10,64 +10,51 @@ import numpy as np
 from datetime import datetime
 import glob
 import re
+import inspect
+import argparse
+import yaml
 
-def visibility_latency_overhead__plot():
+
+#--------------
+# PLOTS
+#--------------
+def plot__visibility_latency_overhead(config):
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.figure(figsize=(4,3))
+  plt.rcParams["figure.figsize"] = [6,3.5]
+  plt.rcParams["figure.dpi"] = 600
 
   # <Post Storage>-SNS
-  data = [
-    #
-    # REVERSE ORDER OF THE PLOT
-    #
-    {
-      'Post Storage': 'Redis',
-      # 'Overhead Visibility latency %': (864.08 / 375.04) * 100.0,
-      # EU->US
-      'Baseline': round(375.04),
-      'Antipode': round(864.08),
-      # EU->SG
-      # 'Baseline': round(499.49),
-      # 'Antipode': round(909.48),
-    },
-    {
-      'Post Storage': 'DynamoDB',
-      # 'Overhead Visibility latency %': (1551.94 / 544.02) * 100.0,
-      # EU->US
-      'Baseline': round(544.02),
-      'Antipode': round(1551.94),
-      # EU->SG
-      # 'Baseline': round(679.25),
-      # 'Antipode': round(2058.26),
-    },
-    {
-      'Post Storage': 'MySQL',
-      # antipode vl (MEAN) / baseline vl (MEAN)
-      # 'Overhead Visibility latency %': (1173.65 / 1147.13) * 100.0,
-      # EU->US
-      'Baseline': round(1147.13),
-      'Antipode': round(1173.65),
-      # EU->SG
-      # 'Baseline': round(1219.94),
-      # 'Antipode': round(1662.87),
-    },
-    {
-      'Post Storage': 'S3',
-      # 'Overhead Visibility latency %': (18455.11 / 696.04) * 100.0,
-      # EU->US
-      'Baseline': round(696.04),
-      'Antipode': round(18455.11),
-      # EU->SG
-      # 'Baseline': round(846.36),
-      # 'Antipode': round(18532.72),
-    },
-  ]
+  data = {}
+  for gather_path in config['gather_paths']:
+    # 'Post Storage': 'DynamoDB',
+    # # 'Overhead Visibility latency %': (1551.94 / 544.02) * 100.0,
+    # # EU->US
+    # 'Original': round(544.02),
+    # 'Antipode': round(1551.94),
+    traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
 
-  # for each Baseline / Antipode pair we take the Baseline out of antipode so
+    # ignoring notification_storage since we fix one for this plot
+    post_storage , _ = traces_filepath.parts[-3].split('-')
+
+    # check if combination already in the data folder
+    if post_storage not in data:
+      data[post_storage] = {
+        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
+      }
+
+    # find out if antipode is enabled
+    run_type = 'Antipode' if 'antipode' in traces_filepath.parts[-2] else 'Original'
+
+    df = pd.read_csv(traces_filepath,sep=';',index_col=0)
+    data[post_storage][run_type] = round(df['visibility_latency_ms'].mean())
+
+  data = list(data.values())
+
+  # for each Original / Antipode pair we take the Original out of antipode so
   # stacked bars are presented correctly
   for d in data:
-    d['Antipode'] = max(0, d['Antipode'] - d['Baseline'])
+    d['Antipode'] = max(0, d['Antipode'] - d['Original'])
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
@@ -80,13 +67,17 @@ def visibility_latency_overhead__plot():
     ax = df.plot(kind='bar', stacked=True, logy=False)
     plt.xticks(rotation = 0)
 
-  ax.set_ylabel('Visibility Latency (ms)')
+  ax.set_ylabel('Latency (ms)')
 
   # plot baseline bar
   ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
   # plot overhead bar
   labels = [ f"+ {round(e)}" for e in ax.containers[1].datavalues ]
   ax.bar_label(ax.containers[1], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
+
+  # reverse order of legend
+  handles, labels = ax.get_legend_handles_labels()
+  ax.legend(handles[::-1], labels[::-1])
 
   # save with a unique timestamp
   plt.tight_layout()
@@ -95,29 +86,22 @@ def visibility_latency_overhead__plot():
   print(f"[INFO] Saved plot '{plot_filename}'")
 
 
-def delay_vs_per_inconsistencies__plot():
+def plot__delay_vs_per_inconsistencies(config):
+  from matplotlib.ticker import ScalarFormatter
+  import matplotlib.ticker as mtick
+
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.figure(figsize=(8,6))
-
-  combinations = [
-    { 'post_storage': 's3',     'notification_storage': 'sns' },
-    { 'post_storage': 'dynamo', 'notification_storage': 'sns' },
-    { 'post_storage': 'cache',  'notification_storage': 'sns' },
-    { 'post_storage': 'mysql',  'notification_storage': 'sns' },
-  ]
-  writer_region = 'eu'
-  reader_region = 'us'
-  num_requests = 1000
+  plt.figure(figsize=(6,3), dpi=600)
 
   # Using [0-9] pattern
   data = {}
-  for c in combinations:
+  for c in config['combinations']:
     post_storage = c['post_storage']
     notification_storage = c['notification_storage']
     combination = f"{post_storage}-{notification_storage}"
 
-    pattern= str(ROOT_PATH / 'gather' / combination / f"{writer_region}-{reader_region}__{num_requests}__delay-*")
+    pattern= str(ROOT_PATH / 'gather' / combination / f"{config['writer_region']}-{config['reader_region']}__{config['num_requests']}__delay-*")
     for path in glob.glob(pattern):
       delay_ms = int(re.search(r'delay-([0-9]*)ms', path).group(1))
 
@@ -138,22 +122,33 @@ def delay_vs_per_inconsistencies__plot():
   # pick max for each entry
   data = [
     {
-      'combination': combination,
       'delay_ms': delay_ms,
-      'per_inconsistencies': min(per_inconsistencies)
+      'per_inconsistencies': min(per_inconsistencies),
+      # only consider post-storage
+      'combination': STORAGE_PRETTY_NAMES[combination.split('-')[0]],
     } for combination, d in data.items() for delay_ms, per_inconsistencies in d.items()
   ]
   # build df
   df = pd.DataFrame.from_records(data).sort_values(by=['combination','delay_ms'])
   pp(df)
 
-  p = sns.lineplot(data=df, x="delay_ms", y="per_inconsistencies", hue="combination")
-  p.set(xscale='log')
-  # ax = df.plot(kind='line', logx=True)
-  # ax.set_ylabel('% Inconsistencies')
-  # ax.set_xlabel('Delay (ms)')
-  # ax.set_xticks([ d['delay_ms'] for d in data])
-  # plt.xticks(rotation = 90)
+  ax = sns.lineplot(data=df, x="delay_ms", y="per_inconsistencies", hue="combination", linewidth=3)
+  # set log scale
+  ax.set_xscale('log')
+  # change log scale ticks to scalar
+  for axis in [ax.xaxis, ax.yaxis]:
+    axis.set_major_formatter(ScalarFormatter())
+  # change y scale to 0-100
+  ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+  # change the axis labels
+  ax.set_ylabel('% Inconsistencies')
+  ax.set_xlabel('Artificial Delay (ms)')
+  # legend outside
+  ax.legend_.set_title(None)
+  # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+  # ax.legend(loc='lower center', bbox_to_anchor=(1, 0.5))
+  sns.move_legend(ax, "lower center", bbox_to_anchor=(.5, 1), ncol=4, title=None, frameon=True)
+
 
   # save with a unique timestamp
   plt.tight_layout()
@@ -167,6 +162,30 @@ def delay_vs_per_inconsistencies__plot():
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 PLOTS_PATH = ROOT_PATH / 'plots'
+GATHER_PATH = ROOT_PATH / 'gather'
+PLOT_NAMES = [name.split('plot__')[1] for name,_ in inspect.getmembers(sys.modules[__name__]) if name.startswith('plot__')]
+STORAGE_PRETTY_NAMES = {
+  's3': 'S3',
+  'sns': 'SNS',
+  'mysql': 'MySQL',
+  'cache': 'Redis',
+  'dynamo': 'DynamoDB',
+}
 
-# visibility_latency_overhead__plot()
-delay_vs_per_inconsistencies__plot()
+#--------------
+# CLI
+#--------------
+if __name__ == '__main__':
+  # parse arguments
+  main_parser = argparse.ArgumentParser()
+  main_parser.add_argument('config', type=argparse.FileType('r', encoding='UTF-8'), help="Plot config to load")
+  main_parser.add_argument('--plots', nargs='*', choices=PLOT_NAMES, default=PLOT_NAMES, required=False, help="Plot only the passed plot names")
+
+  # parse args
+  args = vars(main_parser.parse_args())
+  # load yaml
+  args['config'] = (yaml.safe_load(args['config']) or {})
+
+  for plot_name in set(args['config'].keys()) & set(args['plots']):
+    gather_paths = args['config'][plot_name]
+    getattr(sys.modules[__name__], f"plot__{plot_name}")(gather_paths)

@@ -6,7 +6,9 @@ old-lambdas
 .last.yml
 deploy/*
 !deploy/.keep
-plots/*
+plots/*.png
+plots/configs/*
+!plots/configs/sample.yml
 !plots/.keep
 # files for purging AWS MQ
 mq-brokers.config

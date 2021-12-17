@@ -1,0 +1,18 @@
+delay_vs_per_inconsistencies:
+  combinations:
+    - post_storage: 's3'
+      notification_storage: 'sns'
+    - post_storage: 'dynamo'
+      notification_storage: 'sns'
+    - post_storage: 'cache'
+      notification_storage: 'sns'
+    - post_storage: 'mysql'
+      notification_storage: 'sns'
+  writer_region: 'eu'
+  reader_region: 'us'
+  num_requests: 1000
+
+visibility_latency_overhead:
+  gather_paths:
+    - 'cache-sns/eu-us__1000-20210912134647'
+    - 'cache-sns/eu-us__antipode__1000-20210913103954'
