@@ -21,7 +21,7 @@ import yaml
 def plot__visibility_latency_overhead(config):
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,3.5]
+  plt.rcParams["figure.figsize"] = [6,3]
   plt.rcParams["figure.dpi"] = 600
 
   # <Post Storage>-SNS
@@ -68,6 +68,7 @@ def plot__visibility_latency_overhead(config):
     plt.xticks(rotation = 0)
 
   ax.set_ylabel('Latency (ms)')
+  ax.set_xlabel('')
 
   # plot baseline bar
   ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
