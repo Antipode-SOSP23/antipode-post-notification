@@ -21,8 +21,9 @@ import yaml
 def plot__visibility_latency_overhead(config):
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,3]
+  plt.rcParams["figure.figsize"] = [6,2.9]
   plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
 
   # <Post Storage>-SNS
   data = {}
@@ -67,7 +68,7 @@ def plot__visibility_latency_overhead(config):
     ax = df.plot(kind='bar', stacked=True, logy=False)
     plt.xticks(rotation = 0)
 
-  ax.set_ylabel('Latency (ms)')
+  ax.set_ylabel('Consistency Window (ms)')
   ax.set_xlabel('')
 
   # plot baseline bar
@@ -93,7 +94,8 @@ def plot__delay_vs_per_inconsistencies(config):
 
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.figure(figsize=(6,3), dpi=600)
+  plt.figure(figsize=(6,2.75), dpi=600)
+  plt.rcParams['axes.labelsize'] = 'small'
 
   # Using [0-9] pattern
   data = {}
