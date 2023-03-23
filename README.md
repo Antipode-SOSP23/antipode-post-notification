@@ -32,10 +32,10 @@ As an alternative method, you can run our eval script (all regions, all combinat
 # AWS Configurations
 
 ## SQS EVAL QUEUE
-1. Go to us-east-1 zone and to the AWS SQS dashboard
+1. Go to each reader region (us-east-1) zone and to the AWS SQS dashboard
 2. Create queue with the following parameters:
     - Standard type
-    - name: antipode-lambda-notifications
+    - name: antipode-lambda-eval
 
 ## VPC
 As a tip use the same name for all objects, its easier to track. We use 'antipode-mq'
