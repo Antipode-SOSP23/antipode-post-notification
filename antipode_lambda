@@ -599,7 +599,6 @@ def clean__mq():
   (amazonmq_cli['--cmdfile', ROOT_PATH / 'deploy' / 'mq-purge.cmd'] & BG).wait()
   print("Done!")
 
-
 def clean__cache():
   import boto3
 
@@ -856,7 +855,7 @@ def gather(args):
   # pd.set_option('display.float_format', lambda x: '%.3f' % x)
   pd.set_option('display.html.table_schema', True)
   pd.set_option('display.precision', 2)
-  pd.set_option('max_columns', None)
+  pd.set_option('display.max_columns', None)
   pd.set_option('display.expand_frame_repr', False)
   with open(info_path, 'w') as f:
     for tag,v in eval_tags.items():
