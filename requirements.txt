@@ -8,3 +8,5 @@ tqdm
 click
 matplotlib
 seaborn
+grpcio
+grpcio-tools

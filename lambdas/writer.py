@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import time
 import importlib
+import grpc
 
 #--------------
 # AWS SAM Deployment details
@@ -15,7 +16,12 @@ POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 ANTIPODE_RENDEZVOUS_ENABLED = bool(int(os.environ['ANTIPODE_RENDEZVOUS_ENABLED']))
+RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
+RENDEZVOUS_ADDRESS = os.environ['RENDEZVOUS_ADDRESS']
 DELAY_MS = int(os.environ['DELAY_MS'])
+
+def _region(role):
+  return os.environ[f"{role.upper()}_REGION"]
 
 def lambda_handler(event, context):
   # this is used in cases where Lambdas are inside a VPC and we cannot clean outside of it
@@ -27,8 +33,10 @@ def lambda_handler(event, context):
 
   # dynamically load
   write_post = getattr(importlib.import_module(POST_STORAGE), 'write_post')
+  write_post_rendezvous = getattr(importlib.import_module(POST_STORAGE), 'write_post_rendezvous')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
+  rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   # init Antipode service registry and request context
   if ANTIPODE:
@@ -38,12 +46,35 @@ def lambda_handler(event, context):
     }
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
+  if RENDEZVOUS:
+    import rendezvous as rdv, rendezvous_pb2 as rdv_pb, rendezvous_pb2_grpc as rdv_service
+    rid = context.aws_request_id
+    event['rid'] = rid
+
+    channel = grpc.insecure_channel(RENDEZVOUS_ADDRESS)
+    stub = rdv_service.RendezvousServiceStub(channel)
+
+    try:
+      stub.registerRequest(rdv_pb.RegisterRequestMessage(rid=rid))
+      stub.registerBranches(rdv_pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post-storage'))
+    except grpc.RpcError as e:
+      print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
+    
+    # start thread that will close all branches in writer region
+    SERVICE_REGISTRY = rendezvous_shim('writer', _region('writer'))
+    rendezvous = rdv.Rendezvous(SERVICE_REGISTRY)
+    rendezvous.init_polling()
+
   #------
 
   # mark timestamp of start of request processing - for visibility latency
   event['writer_start_at'] = datetime.utcnow().timestamp()
+  
+  if RENDEZVOUS:
+    op = write_post_rendezvous(i=event['i'], k=event['key'], rid=rid, service='post-storage')
+  else:
+    op = write_post(i=event['i'], k=event['key'])
 
-  op = write_post(i=event['i'], k=event['key'])
   event['post_written_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:

@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package rendezvous;
+
+service RendezvousService {
+  rpc registerRequest(RegisterRequestMessage) returns (RegisterRequestResponse);
+  rpc registerBranch(RegisterBranchMessage) returns (RegisterBranchResponse);
+  rpc registerBranches(RegisterBranchesMessage) returns (RegisterBranchesResponse);
+  rpc closeBranch(CloseBranchMessage) returns (Empty);
+  rpc waitRequest(WaitRequestMessage) returns (Empty);
+  rpc checkRequest(CheckRequestMessage) returns (CheckRequestResponse);
+  rpc checkRequestByRegions(CheckRequestByRegionsMessage) returns (CheckRequestByRegionsResponse);
+  rpc getPreventedInconsistencies(Empty) returns (GetPreventedInconsistenciesResponse);
+}
+
+/* Helpers */
+
+enum RequestStatus {
+  OPENED = 0;
+  CLOSED = 1;
+}
+
+message RegionStatus {
+  string region = 1;
+  RequestStatus status = 2;
+}
+
+message Empty {
+
+}
+
+/* Register Request */
+
+message RegisterRequestMessage {
+  optional string rid = 1;
+}
+
+message RegisterRequestResponse {
+  string rid = 1;
+}
+
+/* Register Branch */
+
+message RegisterBranchMessage {
+  optional string rid = 1;
+  optional string region = 2;
+  optional string service = 3;
+}
+
+message RegisterBranchResponse {
+  int64 bid = 1;
+  optional string rid = 2;
+}
+
+/* Registers Branches */
+
+message RegisterBranchesMessage {
+  optional string rid = 1;
+  optional string region = 2;
+  optional string service = 3;
+  int32 num = 4;
+}
+
+message RegisterBranchesResponse {
+  repeated int64 bid = 1;
+  optional string rid = 2;
+}
+
+/* Close Branch */
+
+message CloseBranchMessage {
+  string rid = 1;
+  int64 bid = 2;
+}
+
+/* Wait Request */
+
+message WaitRequestMessage {
+  string rid = 1;
+  optional string region = 2;
+  optional string service = 3;
+}
+
+/* Check Request */
+
+message CheckRequestMessage {
+  string rid = 1;
+  optional string region = 2;
+  optional string service = 3;
+}
+
+message CheckRequestResponse {
+  RequestStatus status = 1;
+}
+
+/* Check Request by Regions */
+
+message CheckRequestByRegionsMessage {
+  string rid = 1;
+  optional string service = 2;
+}
+
+message CheckRequestByRegionsResponse {
+  repeated RegionStatus regionStatus = 1;
+}
+
+/* Get Prevented Inconsistencies */
+
+message GetPreventedInconsistenciesResponse {
+  int64 inconsistencies = 1;
+}

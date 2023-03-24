@@ -72,6 +72,8 @@ RUN set -ex ;\
         click \
         matplotlib \
         seaborn \
+        grpcio \
+        grpcio-tools \
         ;\
     # make sure nothing is on pip cache folder
     rm -rf ~/.cache/pip/

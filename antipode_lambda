@@ -162,6 +162,8 @@ def _build_service(role, args):
               READER_REGION: {{ reader_region }}
               ANTIPODE: {{ antipode_enabled }}
               ANTIPODE_RENDEZVOUS_ENABLED: {{ antipode_rendezvous_enabled }}
+              RENDEZVOUS: {{ rendezvous_enabled }}
+              RENDEZVOUS_ADDRESS: {{ rendezvous_address }}
               DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
@@ -177,7 +179,9 @@ def _build_service(role, args):
     'writer_region': args['writer'],
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
+    'rendezvous_enabled': int(args['rendezvous']),
     'antipode_rendezvous_enabled': int(args['antipode_rendezvous']),
+    'rendezvous_address': CONNECTION_INFO['rendezvous']['address'],
     'delay_ms': args['delay'],
     # vpc configurations if needed
     'vpc_required': app_args['vpc_required'],
@@ -215,6 +219,15 @@ def _build_service(role, args):
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode.py', deploy_dir)
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / f"antipode_{args['post_storage']}.py", deploy_dir)
 
+  # copy rendezvous if its enabled
+  if args['rendezvous']:
+    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / f"rendezvous_{args['post_storage']}.py", deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'rendezvous_shim.py', deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'rendezvous.py', deploy_dir)
+    # copy auto-generated protobuf files 
+    for filename in ['rendezvous_pb2_grpc.py', 'rendezvous_pb2.py', 'rendezvous_pb2.pyi']:
+      shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'proto' / filename, deploy_dir)
+
   # figure out deploy params
   region = args[role]
   s3_bucket = CONNECTION_INFO['lambda']['s3_buckets'][region]
@@ -248,6 +261,24 @@ def _build_service(role, args):
 
   os.chdir(ROOT_PATH)
 
+def _compile_rendezvous_protos():
+    import subprocess
+    
+    proto_path = 'lambdas/rendezvous/proto'
+    command = f"""
+        python3 -m grpc_tools.protoc \
+        -I {proto_path} \
+        --python_out={proto_path} \
+        --pyi_out={proto_path} \
+        --grpc_python_out={proto_path} \
+        {proto_path}/rendezvous.proto \
+    """
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+    if result.returncode != 0:
+      print(f'[ERROR] Could not compile rendezvous protobuf files {result.stderr}')
+      exit(-1)
+
 def build(args):
   _force_docker()
 
@@ -256,6 +287,7 @@ def build(args):
     args['antipode'] = True
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
+  _put_last('rendezvous_enabled', args['rendezvous'])
   _put_last('delay', args['delay'])
   _put_last('post_storage', args['post_storage'])
   _put_last('notification_storage', args['notification_storage'])
@@ -267,6 +299,11 @@ def build(args):
     else:
       args[role] = REGIONS[args[role]]
       _put_last(f"{role}_region", args[role])
+
+  # compile rendezvous proto files
+  if args['rendezvous']:
+    print(f"[INFO] Compiling rendezvous protobuf files... ", flush=True)
+    _compile_rendezvous_protos()
 
   # trigger build for writer and reader
   print(f"[INFO] Building {args['post_storage']}-{args['notification_storage']} application... ", flush=True)
@@ -489,6 +526,7 @@ def clean__dynamo():
       DYNAMO_CONN['post_table_name'],
       DYNAMO_CONN['notifications_table_name'],
       DYNAMO_CONN['antipode_table'],
+      DYNAMO_CONN['rendezvous_table'],
     ]
     for table_name in table_names:
       table = resource_dynamo.Table(table_name)
@@ -713,6 +751,7 @@ def gather(args):
   post_storage = _get_last('post_storage')
   notification_storage = _get_last('notification_storage')
   antipode_enabled = _get_last('antipode_enabled')
+  rendezvous_enabled = _get_last('rendezvous_enabled')
   num_requests = _get_last('requests')
   delay = _get_last('delay')
   latencies = _get_last('latencies')
@@ -793,6 +832,14 @@ def gather(args):
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
 
+          if rendezvous_enabled:
+            e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])
+            # inconsistency window is only set if rendezvous prevented an inconsistency
+            if item['rendezvous_inconsistency_window_ms'] is not None:
+              e['rendezvous_inconsistency_window_ms'] = int(item['rendezvous_inconsistency_window_ms'])
+            else:
+              e['rendezvous_inconsistency_window_ms'] = None
+
           results[int(item['i'])] = e
           message.delete()
           pbar.update(1)
@@ -805,6 +852,8 @@ def gather(args):
     args['tag'] = f"{_dict_reverse_lookup(REGIONS, writer_region)}-{_dict_reverse_lookup(REGIONS, reader_region)}__{num_requests}__delay-{delay}ms"
     if antipode_enabled:
       args['tag'] = 'antipode__' + args['tag']
+    if rendezvous_enabled:
+      args['tag'] = 'rendezvous__' + args['tag']
 
   # now we compute date over the global results and tidy up dict for dataframe
   eval_values = results.values()
@@ -850,6 +899,9 @@ def gather(args):
       '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
       'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
     }
+  
+  if rendezvous_enabled:
+    eval_tags['%_PREVENTED_INCONSISTENCIES'] = len(df.query('rendezvous_prevented_inconsistency == 1')) / float(len(df))
 
   # save the pandas describe
   # pd.set_option('display.float_format', lambda x: '%.3f' % x)
@@ -924,6 +976,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
+  build_parser.add_argument('-rdv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
   build_parser.add_argument('-ant-r', '--antipode-rendezvous', action='store_true', help="Enables antipode rendezvouz point version")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 

@@ -1,12 +1,18 @@
 import boto3
 import botocore
 import os
+import json
 from datetime import datetime
+
+S3_RENDEZVOUS_PATH = os.environ['S3_RENDEZVOUS_PATH']
 
 def _bucket(role):
   role = role.upper()
   role_region = os.environ[f"{role}_REGION"]
   return os.environ[f"S3_BUCKET__{role_region.replace('-','_').upper()}__{role}"]
+
+def _bucket_key_rendezvous(rid):
+  return f"{S3_RENDEZVOUS_PATH}/{rid}"
 
 def write_post(i,k):
   s3_client = boto3.client('s3')
@@ -17,6 +23,37 @@ def write_post(i,k):
       Key=str(k),
       Body=os.urandom(1000000),
     )
+  
+def write_post_rendezvous(i, k, rid, service=''):
+  # s3 does not support transactions so we have to add two distinct objects
+  s3_client = boto3.client('s3')
+
+  # add post object
+  s3_client.put_object(
+    Bucket=_bucket('writer'),
+    Key=str(k),
+    Body=os.urandom(1000000),
+    # store rid for this object version so we can validate its availability later
+    Metadata={
+        'rendezvous_rid': rid
+    }
+  )
+
+  request = {
+    'rid': rid,
+    'service': service,
+    'ts': datetime.now().strftime('%Y-%m-%d %H:%M'),
+    # store object (post) key for later search
+    'object_key': str(k)
+  }
+
+  # add rendezvous object
+  s3_client.put_object(
+    Bucket=_bucket('writer'),
+    Key=_bucket_key_rendezvous(rid),
+    Body=json.dumps(request)
+  )
+    
   return (_bucket('reader'), str(k))
 
 def read_post(k, evaluation):
@@ -35,6 +72,11 @@ def antipode_shim(id, role):
   import antipode_s3 as ant # this file will get copied when deploying
 
   return ant.AntipodeS3(_id=id, conn=_bucket(role))
+
+def rendezvous_shim(role, region):
+  import rendezvous_s3 as rdv
+
+  return rdv.RendezvousS3(_bucket(role), region)
 
 def clean():
   None

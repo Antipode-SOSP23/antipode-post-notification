@@ -4,6 +4,7 @@ import pymysql.cursors
 from datetime import datetime
 
 MYSQL_POST_TABLE_NAME = os.environ['MYSQL_POST_TABLE_NAME']
+MYSQL_RENDEZVOUS_TABLE_NAME = os.environ['MYSQL_RENDEZVOUS_TABLE_NAME']
 
 def _mysql_connection(role):
   # connect to mysql
@@ -41,6 +42,31 @@ def write_post(i,k):
     print(f"[ERROR] MySQL exception writing post: {e}")
     exit(-1)
 
+
+def write_post_rendezvous(i, k, rid, service=''):
+  try:
+    # connect to mysql
+    mysql_conn = _mysql_connection('writer')
+    op = (MYSQL_POST_TABLE_NAME, 'v', k)
+
+    with mysql_conn.cursor() as cursor:
+        
+        # store post record
+        sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
+        cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
+
+        # store rendezvous metadata record
+        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE_NAME}` (`rid`, `service`, `ts`) VALUES (%s, %s, NOW())"
+        cursor.execute(sql, (rid, service))
+
+        mysql_conn.commit()
+      
+  except pymysql.Error as e:
+    print(f"[ERROR] MySQL exception writing post with rendezvous metadata: {e}")
+    exit(-1)
+
+  return op
+
 def read_post(k, evaluation):
   # connect to mysql
   mysql_conn = _mysql_connection('reader')
@@ -56,6 +82,11 @@ def antipode_shim(id, role):
   import antipode_mysql as ant # this file will get copied when deploying
 
   return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))
+
+def rendezvous_shim(role, region):
+  import rendezvous_mysql as rdv
+
+  return rdv.RendezvousMysql(_mysql_connection(role), region)
 
 def clean():
   None

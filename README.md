@@ -18,7 +18,7 @@ Due to a bug with aws sam client this deployment is currently not working
 
 # How to run
 1. You start by building the setup: `./antipode_lambda build --post-storage mysql --notification-storage sns --writer eu --reader us`
-If you have antipode add `-ant` to your options
+If you have antipode add `-ant` to your options. If you have rendezvous add `-rdv`.
 
 2. Then you run a certain number of requests: `./antipode_lambda run -r 5000`
 
@@ -53,6 +53,15 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 7. Go to Endpoints and create an entrypoint for AWS services needed. Make sure you select the correct VPC and Subnet
     - Reader: SNS, SQS
     - Writer: SNS, Dynamo (Gateway), ec2
+
+## S3 Buckets
+- Create one backet for each zone:
+  - antipode-lambda-<region_name>
+
+## IAM
+- Create roles for each service and add and configure one permission policy for each
+  - antipode-cloudformation-admin
+  - antipode-lambda-admin
 
 ## Aurora Mysql Global Cluster
 - In each of the zones first create a Parameter Group

@@ -1,14 +1,23 @@
 import boto3
 import os
 from datetime import datetime
+import time
 
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
 DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
+DYNAMO_RENDEZVOUS_TABLE = os.environ['DYNAMO_RENDEZVOUS_TABLE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
   return boto3.resource('dynamodb',
+      region_name=region,
+      endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
+    )
+
+def _client(role):
+  region = os.environ[f"{role.upper()}_REGION"]
+  return boto3.client('dynamodb',
       region_name=region,
       endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
     )
@@ -22,6 +31,36 @@ def write_post(i,k):
     })
   return op
 
+def write_post_rendezvous(i, k, rid, service=''):
+  op = (DYNAMO_POST_TABLE_NAME, 'k', k)
+  
+  _client('writer').transact_write_items(
+    TransactItems=[
+      {
+        'Put': {
+          'TableName': DYNAMO_POST_TABLE_NAME,
+          'Item': {
+            'k': {'S': k},
+            'b': {'B': os.urandom(350000)}
+          }
+        }
+      },
+      {
+        'Put': {
+          'TableName': DYNAMO_RENDEZVOUS_TABLE,
+          'Item': {
+            'rid': {'S': rid}, # partition key
+            'service': {'S': service},
+            'ts': {'S': datetime.now().strftime('%Y-%m-%d %H:%M')}, # set timestamp with minute precision
+            'ttl': {'N': str(int(time.time() + 3600))} # expiration time 60 minutes from now
+          }
+        }
+      }
+    ]
+)
+
+  return op
+
 def read_post(k, evaluation):
   post_table = _conn('reader').Table(DYNAMO_POST_TABLE_NAME)
   # read key of post
@@ -31,6 +70,11 @@ def antipode_shim(id, role):
   import antipode_dynamo as ant # this file will get copied when deploying
 
   return ant.AntipodeDynamo(_id=id, conn=_conn(role))
+
+def rendezvous_shim(role, region):
+  import rendezvous_dynamo as rdv
+
+  return rdv.RendezvousDynamo(_conn(role), region)
 
 def write_notification(event):
   # write notification to current AWS region

@@ -15,3 +15,5 @@ mq-brokers.config
 mq-purge.cmd
 spring-shell.log
 activemq-cli.log
+# rendezvous auto generated protobufs
+lambdas/rendezvous/proto/rendezvous_pb2*
