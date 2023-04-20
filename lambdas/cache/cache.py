@@ -28,7 +28,7 @@ def write_post(i,k):
   _conn('writer').set(k, json.dumps(post))
   return op
 
-def write_post_rendezvous(i, k, rid, service=''):
+def write_post_rendezvous(i, k, rid, bid):
   op = (k,)
 
   pipe = _conn('writer').pipeline()
@@ -40,13 +40,12 @@ def write_post_rendezvous(i, k, rid, service=''):
   }
   pipe.set(k, json.dumps(post))
 
-  metadata = {
+  rendezvous_metadata = {
     'rid': rid,
-    'service': service,
-    'ts': datetime.now().strftime('%Y-%m-%d %H:%M')
+    'bid': bid
   }
-  # set the key with a 60-minute expiration time
-  pipe.set(_cache_key_rendezvous(rid), json.dumps(metadata), ex=3600)
+  
+  pipe.set(_cache_key_rendezvous(rid), json.dumps(rendezvous_metadata), ex=1800) # 30-minute expiration date
   
   pipe.execute()
 

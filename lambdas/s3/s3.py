@@ -24,34 +24,29 @@ def write_post(i,k):
       Body=os.urandom(1000000),
     )
   
-def write_post_rendezvous(i, k, rid, service=''):
+def write_post_rendezvous(i, k, rid, bid):
   # s3 does not support transactions so we have to add two distinct objects
   s3_client = boto3.client('s3')
 
-  # add post object
   s3_client.put_object(
     Bucket=_bucket('writer'),
     Key=str(k),
     Body=os.urandom(1000000),
-    # store rid for this object version so we can validate its availability later
     Metadata={
-        'rendezvous_rid': rid
+        'rendezvous': rid
     }
   )
 
-  request = {
+  rendezvous_metadata = {
     'rid': rid,
-    'service': service,
-    'ts': datetime.now().strftime('%Y-%m-%d %H:%M'),
-    # store object (post) key for later search
-    'object_key': str(k)
+    'bid': bid,
+    'obj_key': str(k)
   }
 
-  # add rendezvous object
   s3_client.put_object(
     Bucket=_bucket('writer'),
     Key=_bucket_key_rendezvous(rid),
-    Body=json.dumps(request)
+    Body=json.dumps(rendezvous_metadata)
   )
     
   return (_bucket('reader'), str(k))

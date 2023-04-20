@@ -29,6 +29,10 @@ message Empty {
 
 }
 
+message RequestContext {
+  map<string, int32> versions = 1;
+}
+
 /* Register Request */
 
 message RegisterRequestMessage {
@@ -37,6 +41,7 @@ message RegisterRequestMessage {
 
 message RegisterRequestResponse {
   string rid = 1;
+  RequestContext context = 2;
 }
 
 /* Register Branch */
@@ -45,11 +50,13 @@ message RegisterBranchMessage {
   optional string rid = 1;
   optional string service = 2;
   string region = 3;
+  RequestContext context = 4;
 }
 
 message RegisterBranchResponse {
   string rid = 1;
-  int64 bid = 2;
+  string bid = 2;
+  RequestContext context = 3;
 }
 
 /* Registers Branches */
@@ -58,18 +65,20 @@ message RegisterBranchesMessage {
   optional string rid = 1;
   optional string service = 2;
   repeated string regions = 3;
+  RequestContext context = 4;
 }
 
 message RegisterBranchesResponse {
   string rid = 1;
-  repeated int64 bid = 2;
+  string bid = 2;
+  RequestContext context = 3;
 }
 
 /* Close Branch */
 
 message CloseBranchMessage {
   string rid = 1;
-  optional string service = 2;
+  string bid = 2;
   string region = 3;
 }
 
@@ -79,6 +88,7 @@ message WaitRequestMessage {
   string rid = 1;
   optional string service = 2;
   optional string region = 3;
+  RequestContext context = 4;
 }
 
 message WaitRequestResponse {
@@ -91,6 +101,7 @@ message CheckRequestMessage {
   string rid = 1;
   optional string service = 2;
   optional string region = 3;
+  RequestContext context = 4;
 }
 
 message CheckRequestResponse {
@@ -102,6 +113,7 @@ message CheckRequestResponse {
 message CheckRequestByRegionsMessage {
   string rid = 1;
   optional string service = 2;
+  RequestContext context = 4;
 }
 
 message CheckRequestByRegionsResponse {

@@ -7,17 +7,11 @@ DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
 DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
 DYNAMO_RENDEZVOUS_TABLE = os.environ['DYNAMO_RENDEZVOUS_TABLE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
   return boto3.resource('dynamodb',
-      region_name=region,
-      endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
-    )
-
-def _client(role):
-  region = os.environ[f"{role.upper()}_REGION"]
-  return boto3.client('dynamodb',
       region_name=region,
       endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
     )
@@ -31,34 +25,24 @@ def write_post(i,k):
     })
   return op
 
-def write_post_rendezvous(i, k, rid, service=''):
+def write_post_rendezvous(i, k, rid, bid):
   op = (DYNAMO_POST_TABLE_NAME, 'k', k)
-  
-  _client('writer').transact_write_items(
-    TransactItems=[
-      {
-        'Put': {
-          'TableName': DYNAMO_POST_TABLE_NAME,
-          'Item': {
-            'k': {'S': k},
-            'b': {'B': os.urandom(350000)}
-          }
-        }
-      },
-      {
-        'Put': {
-          'TableName': DYNAMO_RENDEZVOUS_TABLE,
-          'Item': {
-            'rid': {'S': rid}, # partition key
-            'service': {'S': service},
-            'ts': {'S': datetime.now().strftime('%Y-%m-%d %H:%M')}, # set timestamp with minute precision
-            'ttl': {'N': str(int(time.time() + 3600))} # expiration time 60 minutes from now
-          }
-        }
-      }
-    ]
-)
 
+  post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
+  post_table.put_item(Item={
+    'k': str(k),
+    'b': os.urandom(350000),
+    'rendezvous': [rid]
+    })
+  
+  rendezvous_table = _conn('writer').Table(DYNAMO_RENDEZVOUS_TABLE)
+  rendezvous_table.put_item(Item={
+    'rid': rid,
+    'bid': bid,
+    'obj_key': str(k),
+    'ttl': int(time.time() + 1800) # set expiration date to 30 min from now
+    })
+    
   return op
 
 def read_post(k, evaluation):
@@ -91,6 +75,9 @@ def write_notification(event):
   # if antipode is enabled we pass the scope
   if ANTIPODE:
     item['cscope']= event['cscope']
+  if RENDEZVOUS:
+    item['rid'] = str(event['rid'])
+    item['rendezvous_context'] = str(event['rendezvous_context'])
   # write the built item
   notifications_table.put_item(Item=item)
 
@@ -112,6 +99,9 @@ def parse_event(event):
       }
       if ANTIPODE:
         event['cscope'] = dynamo_event['dynamodb']['NewImage']['cscope']['S']
+      if RENDEZVOUS:
+        event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
+        event['rendezvous_context'] = dynamo_event['dynamodb']['NewImage']['rendezvous_context']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:

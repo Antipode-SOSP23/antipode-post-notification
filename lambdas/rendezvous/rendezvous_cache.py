@@ -1,6 +1,5 @@
 import os
 import json
-import redis
 from rendezvous_shim import RendezvousShim
 
 CACHE_RENDEZVOUS_PREFIX = os.environ['CACHE_RENDEZVOUS_PREFIX']
@@ -11,24 +10,39 @@ class RendezvousCache(RendezvousShim):
     self.conn = conn
     self.cursor = 0
 
+  def _cache_key_rendezvous(self, rid):
+    return f"{CACHE_RENDEZVOUS_PREFIX}:{rid}"
+  
+  def _cache_prefix_rendezvous(self):
+    return f"{CACHE_RENDEZVOUS_PREFIX}:*"
+
+# ----------------
+# Current request
+# ----------------
+
+  def read_metadata(self, rid):
+    while True:
+      item = self.conn.get(self._cache_key_rendezvous(rid))
+      if item:
+        metadata = json.loads(item)
+        return metadata['bid']
+      
+      self.inconsistency = True
+
+# -------------
+# All requests
+# -------------
+
   def _parse_metadata(self, item):
     metadata = json.loads(item)
-    return metadata['rid'], metadata['service'], metadata['ts']
+    return metadata['rid'], metadata['bid']
 
-  def _read_metadata(self):
-    try:
-      # use redis pipeline to send a single request and avoid multiple round-trips
-      pipe = self.conn.pipeline()
+  def read_all_metadata(self):
+    pipe = self.conn.pipeline()
 
-      # default count in redis is set to 10 so we must increase it
-      # track cursor to continue reading in the next function call and reduce amount of returned items
-      self.cursor, keys = self.conn.scan(cursor=self.cursor, match=f'{CACHE_RENDEZVOUS_PREFIX}:*', count=10000)
-      for key in keys:
-        pipe.get(key)
+    # track cursor to continue reading in the next function call
+    self.cursor, keys = self.conn.scan(cursor=self.cursor, match=self._cache_prefix_rendezvous(), count=10000)
+    for key in keys:
+      pipe.get(key)
 
-      return pipe.execute()
-    
-    except redis.exceptions.RedisError as e:
-      print(f"[ERROR] Cache exception reading rendezvous metadata: {e}", flush=True)
-
-    return []
+    return pipe.execute()

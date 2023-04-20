@@ -4,7 +4,7 @@ import pymysql.cursors
 from datetime import datetime
 
 MYSQL_POST_TABLE_NAME = os.environ['MYSQL_POST_TABLE_NAME']
-MYSQL_RENDEZVOUS_TABLE_NAME = os.environ['MYSQL_RENDEZVOUS_TABLE_NAME']
+MYSQL_RENDEZVOUS_TABLE = os.environ['MYSQL_RENDEZVOUS_TABLE']
 
 def _mysql_connection(role):
   # connect to mysql
@@ -43,7 +43,7 @@ def write_post(i,k):
     exit(-1)
 
 
-def write_post_rendezvous(i, k, rid, service=''):
+def write_post_rendezvous(i, k, rid, bid):
   try:
     # connect to mysql
     mysql_conn = _mysql_connection('writer')
@@ -51,13 +51,11 @@ def write_post_rendezvous(i, k, rid, service=''):
 
     with mysql_conn.cursor() as cursor:
         
-        # store post record
         sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
         cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
 
-        # store rendezvous metadata record
-        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE_NAME}` (`rid`, `service`, `ts`) VALUES (%s, %s, NOW())"
-        cursor.execute(sql, (rid, service))
+        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE}` (`rid`, `bid`, `ttl`) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))"
+        cursor.execute(sql, (rid, bid))
 
         mysql_conn.commit()
       

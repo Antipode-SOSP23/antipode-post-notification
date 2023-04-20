@@ -163,7 +163,9 @@ def _build_service(role, args):
               ANTIPODE: {{ antipode_enabled }}
               ANTIPODE_RENDEZVOUS_ENABLED: {{ antipode_rendezvous_enabled }}
               RENDEZVOUS: {{ rendezvous_enabled }}
-              RENDEZVOUS_ADDRESS: {{ rendezvous_address }}
+              RENDEZVOUS_EU_CENTRAL_1: {{ rendezvous_eu }}
+              RENDEZVOUS_US_EAST_1: {{ rendezvous_us }}
+              RENDEZVOUS_AP-SOUTHEAST-1: {{ rendezvous_ap }}
               DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
@@ -181,7 +183,9 @@ def _build_service(role, args):
     'antipode_enabled': int(args['antipode']),
     'rendezvous_enabled': int(args['rendezvous']),
     'antipode_rendezvous_enabled': int(args['antipode_rendezvous']),
-    'rendezvous_address': CONNECTION_INFO['rendezvous']['address'],
+    'rendezvous_eu': CONNECTION_INFO['rendezvous']['eu-central-1'],
+    'rendezvous_us': CONNECTION_INFO['rendezvous']['us-east-1'],
+    'rendezvous_ap': CONNECTION_INFO['rendezvous']['ap-southeast-1'],
     'delay_ms': args['delay'],
     # vpc configurations if needed
     'vpc_required': app_args['vpc_required'],
@@ -509,6 +513,13 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
+    sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (rid VARCHAR(255), bid VARCHAR(255), ttl DATETIME)"
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table']}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
     print("Done!")
 
 def clean__sns():
@@ -525,9 +536,12 @@ def clean__dynamo():
     table_names = [
       DYNAMO_CONN['post_table_name'],
       DYNAMO_CONN['notifications_table_name'],
-      DYNAMO_CONN['antipode_table'],
-      DYNAMO_CONN['rendezvous_table'],
+      DYNAMO_CONN['antipode_table']
     ]
+
+    if _get_last('rendezvous_enabled'):
+      table_names.append(DYNAMO_CONN['rendezvous_table'])
+
     for table_name in table_names:
       table = resource_dynamo.Table(table_name)
       # Only way to clean a table in DynamoDB is to go key by key
@@ -833,9 +847,10 @@ def gather(args):
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
 
           if rendezvous_enabled:
+            e['rendezvous_spent_ms'] = int(item['rendezvous_spent_ms'])
             e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])
             # inconsistency window is only set if rendezvous prevented an inconsistency
-            if item['rendezvous_inconsistency_window_ms'] is not None:
+            if item['rendezvous_inconsistency_window_ms']:
               e['rendezvous_inconsistency_window_ms'] = int(item['rendezvous_inconsistency_window_ms'])
             else:
               e['rendezvous_inconsistency_window_ms'] = None
