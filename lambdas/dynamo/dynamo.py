@@ -8,6 +8,7 @@ DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
 DYNAMO_RENDEZVOUS_TABLE = os.environ['DYNAMO_RENDEZVOUS_TABLE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
+RENDEZVOUS_METADATA_VALIDITY_S = 1800 # 30 minutes
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
@@ -25,24 +26,23 @@ def write_post(i,k):
     })
   return op
 
-def write_post_rendezvous(i, k, rid, bid):
+def write_post_rendezvous(i, k, bid):
   op = (DYNAMO_POST_TABLE_NAME, 'k', k)
 
   post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
   post_table.put_item(Item={
     'k': str(k),
     'b': os.urandom(350000),
-    'rendezvous': [rid]
+    'rdv_bid': bid
     })
   
   rendezvous_table = _conn('writer').Table(DYNAMO_RENDEZVOUS_TABLE)
   rendezvous_table.put_item(Item={
-    'rid': rid,
     'bid': bid,
     'obj_key': str(k),
-    'ttl': int(time.time() + 1800) # set expiration date to 30 min from now
+    'ttl': int(time.time() + RENDEZVOUS_METADATA_VALIDITY_S)
     })
-    
+  
   return op
 
 def read_post(k, evaluation):
@@ -55,10 +55,10 @@ def antipode_shim(id, role):
 
   return ant.AntipodeDynamo(_id=id, conn=_conn(role))
 
-def rendezvous_shim(role, region):
+def rendezvous_shim(role, service, region):
   import rendezvous_dynamo as rdv
 
-  return rdv.RendezvousDynamo(_conn(role), region)
+  return rdv.RendezvousDynamo(_conn(role), service, region)
 
 def write_notification(event):
   # write notification to current AWS region
@@ -77,7 +77,9 @@ def write_notification(event):
     item['cscope']= event['cscope']
   if RENDEZVOUS:
     item['rid'] = str(event['rid'])
-    item['rendezvous_context'] = str(event['rendezvous_context'])
+    #item['bid'] = str(event['bid'])
+    #item['rendezvous_context'] = str(event['rendezvous_context'])
+    item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
   # write the built item
   notifications_table.put_item(Item=item)
 
@@ -101,7 +103,9 @@ def parse_event(event):
         event['cscope'] = dynamo_event['dynamodb']['NewImage']['cscope']['S']
       if RENDEZVOUS:
         event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
-        event['rendezvous_context'] = dynamo_event['dynamodb']['NewImage']['rendezvous_context']['S']
+        #event['bid'] = dynamo_event['dynamodb']['NewImage']['bid']['S']
+        #event['rendezvous_context'] = dynamo_event['dynamodb']['NewImage']['rendezvous_context']['S']
+        event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:

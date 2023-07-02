@@ -24,10 +24,12 @@ lambda:
     us-east-1: antipode-lambda-us-rendezvous
     ap-southeast-1: antipode-lambda-sg-rendezvous
 
+# when using storages that require vpc enabled (e.g. cache)
+# rendezvous ip address must refer to the PRIVATE one
 rendezvous:
-  eu-central-1: ec2-3-127-152-89.eu-central-1.compute.amazonaws.com:8001
-  us-east-1: ec2-52-207-103-61.compute-1.amazonaws.com:8002
-  ap-southeast-1: ec2-52-207-103-61.compute-1.amazonaws.com:8002
+  eu-central-1: 18.197.60.247:8001
+  us-east-1: 3.83.158.201:8002
+  ap-southeast-1: n/a
 
 datastores:
   mysql:
@@ -81,14 +83,14 @@ datastores:
     notification_queue: antipode-notifications
     stomp_port: 61614
     # writer eu
-    name__eu-central-1: mq-eu
-    arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:mq-eu:b-8b026a92-1858-4a76-bc7a-7bfb25be209d
-    host__eu-central-1: b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com
+    name__eu-central-1: antipode-lambda-notifications-eu
+    arn__eu-central-1: arn:aws:mq:eu-central-1:851889773113:broker:antipode-lambda-notifications-eu:b-92264a3d-516b-44ee-9432-dcd243569c72
+    host__eu-central-1: b-92264a3d-516b-44ee-9432-dcd243569c72-1.mq.eu-central-1.amazonaws.com
     # reader us
-    name__us-east-1: mq-us
-    arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:mq-us:b-8847288a-a3fe-4869-b3f2-6e14b7cefed3
-    host__us-east-1: b-8847288a-a3fe-4869-b3f2-6e14b7cefed3-1.mq.us-east-1.amazonaws.com
-    secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa
+    name__us-east-1: antipode-lambda-notifications-us
+    arn__us-east-1: arn:aws:mq:us-east-1:851889773113:broker:antipode-lambda-notifications-us:b-baa166e8-bb48-4a51-a14f-ff736dca3367
+    host__us-east-1: b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com
+    secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:851889773113:secret:antipode-mq-YcUFaZ
     # reader sg
     name__ap-southeast-1: antipode-lambda-sg
     arn__ap-southeast-1: arn:aws:mq:ap-southeast-1:641424397462:broker:antipode-lambda-sg:b-20f3cf89-7725-44b0-946b-19e84c03b81e

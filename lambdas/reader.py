@@ -33,7 +33,7 @@ def lambda_handler(event, context):
   parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
   read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-  rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
+  #rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   received_at = datetime.utcnow().timestamp()
 
@@ -57,7 +57,8 @@ def lambda_handler(event, context):
     'consistent_read' : 0,
     'antipode_spent_ms': None,
     'rendezvous_spent_ms': None,
-    'rendezvous_inconsistency_window_ms': None,
+    'rendezvous_call_writer_spent_ms':  None,
+    'rendezvous_call_reader_spent_ms': None,
     'rendezvous_prevented_inconsistency': 0,
   }
 
@@ -85,36 +86,41 @@ def lambda_handler(event, context):
 
     import rendezvous as rdv
     rid = event['rid']
-    
-    # start thread that will close the branch for the current region
-    shim_layer = rendezvous_shim('reader', _region('reader'))
-    rendezvous = rdv.Rendezvous(shim_layer)
-    rendezvous.init_close_branch(rid)
+    #bid = event['bid']
 
-    import rendezvous_pb2 as rdv_proto, rendezvous_pb2_grpc as rdv_service
+    #shim_layer = rendezvous_shim('reader', 'post_storage'+rid, _region('reader'))
+    #rendezvous = rdv.Rendezvous(shim_layer)
+    #rendezvous.close_branch(bid)
+
+    import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 
     channel = grpc.insecure_channel(_rendezvous_address('reader'))
-    stub = rdv_service.RendezvousServiceStub(channel)
-      
+    stub = pb_grpc.ClientServiceStub(channel)
     try:
-      rendezvous_context = rdv.context_string_to_proto(event['rendezvous_context'])
-      request = rdv_proto.WaitRequestMessage(rid=rid, region=_region('reader'))
-      request.context.CopyFrom(rendezvous_context)
+      #rendezvous_context = rdv.context_string_to_proto(event['rendezvous_context'])
+      request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=60)
+      #request.context.CopyFrom(rendezvous_context)
 
-      rendezvous_wait_start_ts = datetime.utcnow().timestamp()
-      stub.waitRequest(request, timeout=60) # timeout of 60 seconds 
+      rendezvous_call_start_ts = datetime.utcnow().timestamp()
+      response = stub.WaitRequest(request) # timeout of 300 seconds (safe for s3)
       rendezvous_end_ts = datetime.utcnow().timestamp()
 
       # rendezvous evaluation for prevented inconsistencies
-      if rendezvous.prevented_inconsistency():
-        evaluation['rendezvous_inconsistency_window_ms'] = int((rendezvous_end_ts - rendezvous_wait_start_ts) * 1000)
+      #if rendezvous.prevented_inconsistency():
+      if response.prevented_inconsistency == 1:
         evaluation['rendezvous_prevented_inconsistency'] = 1
+        
+      elif response.prevented_inconsistency == -1:
+        print(f"[INFO] Rendezvous wait call timedout", flush=True)
       
+      evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
+      evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
       evaluation['rendezvous_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
+
           
     except grpc.RpcError as e:
-      print(f"[ERROR] Rendezvous exception waiting request: {e.details()}")
-      return { 'statusCode': 500, 'body': json.dumps(evaluation, default=str) }
+      print(f"[ERROR] Rendezvous exception waiting request: {e.details()}", flush=True)
+      raise e
 
   # read post and fill evaluation
   evaluation['consistent_read'] = int(read_post(event['key'], evaluation))

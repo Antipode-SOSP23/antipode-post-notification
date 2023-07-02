@@ -20,16 +20,33 @@ Due to a bug with aws sam client this deployment is currently not working
 1. You start by building the setup: `./antipode_lambda build --post-storage mysql --notification-storage sns --writer eu --reader us`
 If you have antipode add `-ant` to your options. If you have rendezvous add `-rdv`.
 
-2. Then you run a certain number of requests: `./antipode_lambda run -r 5000`
+1. Then you run a certain number of requests: `./antipode_lambda run -r 1000`
 
-3. Then you gather results with an optional tag: `./antipode_lambda gather -t debug`
+2. Then you gather results with an optional tag: `./antipode_lambda gather -t debug`
 
-4. Finally you clean your experiment in a strong way to remove deployed lambda `./antipode_lambda clean --strong`
+3. Finally you clean your experiment in a strong way to remove deployed lambda (or without the strong flag to just clean storages) `./antipode_lambda clean --strong`
 
-As an alternative method, you can run our eval script (all regions, all combinations): `./eval`
+As an alternative method, you can run our maestrina script (all regions, all combinations): `./maestrina` REMINDER: check this to see if its correct
+
+4. At the end, you can build plots:
+    `./plot plots/configs/sample.yml --plots {delay_vs_per_inconsistencies, visibility_latency_overhead}`
 
 
 # AWS Configurations
+
+## S3
+- Create one bucket for each zone. This is needed to store the templates used to deploy lambdas for each configuration. 
+- You will probably need to provide a different name, as these are unique and public.
+  - antipode-lambda-<region_name>
+
+## IAM
+- Create roles for each service and add and configure one permission policy for each with actions refering to the following services:
+  - antipode-cloudformation-admin
+  - antipode-lambda-admin
+- For each, attach a permission policy with actions for the following services (for simplicity, it can be all actions on all resources):
+  - iam, cloudformation, logs, ec2, lambda, rds, s3, mq, sqs, sns, elasticache, serverlessrepo, redshift, tag, kms, secretsmanager (idk why i have these 5) 
+
+REMINDER: maybe it would be a good idea to provide some policies as it is hard to know when using antipode-lambda for the first time
 
 ## SQS EVAL QUEUE
 1. Go to each reader region (us-east-1) zone and to the AWS SQS dashboard
@@ -39,10 +56,12 @@ As an alternative method, you can run our eval script (all regions, all combinat
 
 ## VPC
 As a tip use the same name for all objects, its easier to track. We use 'antipode-mq'
-1. Create a VPC with a unique CIDR block
-    - *MAIN CONCERN*: Amazon MQ peering connection WILL NOT WORK ON OVERLAPPING CIDR BLOCS. Hence choose a unique one for each region VPC
+1. Create a VPC with a unique CIDR block, distinct from the ones used in other regions. Check the cidr blocks used in connection_info.yaml.
+    - *MAIN CONCERN*: Amazon MQ peering connection WILL NOT WORK ON OVERLAPPING CIDR BLOCKS ACROSS REGIONS. Hence choose a unique one for each region VPC
 2. After creating click on ACTIONS and enable DNS hostnames
-3. Create a subnet with the full CIDR block
+3. Create TWO subnets with the full CIDR block: REMINDER: verify if this is correct
+    - *MAIN CONCERN*: Amazon ElastiCache (redis) requires two subnets because of the additional replica. E.g. for eu-central-1:
+    - 50.0.0.0/20, 50.0.16.0/20
 4. Go to Security Groups and select the default one.
     - Inbound rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
     - Outbout rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
@@ -54,14 +73,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Reader: SNS, SQS
     - Writer: SNS, Dynamo (Gateway), ec2
 
-## S3 Buckets
-- Create one backet for each zone:
-  - antipode-lambda-<region_name>
-
-## IAM
-- Create roles for each service and add and configure one permission policy for each
-  - antipode-cloudformation-admin
-  - antipode-lambda-admin
+REMINDER to check later: for me I didn't need any endpoints except when I was running redis (SNS + SQS + redis + rendezvous)
+also, SNS runs only in eu-central-1
 
 ## Aurora Mysql Global Cluster
 - In each of the zones first create a Parameter Group
@@ -76,13 +89,13 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - MySQL compatibility
     - Provisioned
     - Replication features: Single Master
-    - Select a version that supports "Global Database" feature
+    - Select a version that supports "Global Database" feature (e.g. 5.7.mysql_aurora.2.07.1)
     - Select PRODUCTION template
     - DB cluster identifier: 'antipode-lambda-eu'
     - Credentials:
         - Master Username: 'antipode'
         - Master Password: 'antipode'
-    - Select lowest memory optimized machine
+    - Select lowest memory optimized machine (e.g. db.r3.large)
         - Tick "Include previous generations" for older and cheaper instances
     - Do not create Multi-AZ deployment
     - Choose default VPC
@@ -115,6 +128,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Disable Monitoring
     - Disable Auto minor version upgrade
 
+NOTE: when everything is created, it is recomended to run `./antipode_lambda clean` to create the necessary tables
+
 ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 
 ## SNS
@@ -133,6 +148,7 @@ ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-
     - On Destination click 'Browse S3' and find the bucket named: antipode-lambda-posts-<secondary region>
     - Use the 'antipode-lambda-s3-admin' IAM role
         - This is a rule that gives S3 admin access to operations needed
+        - Don't forget to attach a policy with permissions to access s3 resources
     - Do not select RTC
 
 NOTE: we should also change the replication priority for each deployment (input on code and wait for changes in dashboard?)
@@ -155,7 +171,7 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Num replicas: 1
     - Create a new Subnet group:
         - Name: antipode-lambda-<region>
-        - Select previously created VPC and Subnet group
+        - Select previously created VPC and Subnet groups
         - Select the AZ preference to the only AZ that should be there
     - Select the default SG for the choosed VPC
     - Disable backups
@@ -211,15 +227,14 @@ NOTE: we should also change the replication priority for each deployment (input 
     ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
     ```xml
     <networkConnectors>
-        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
-        <networkConnector duplex="true" name="ConnectorEuToSg" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
     </networkConnectors>
     ```
 
 5. Go the broker again and change the REVISION of the configuration file and do APPLY IMMEDEATLY
 6. Create a consumer on a secondary region to the primary region (change url):
     ```
-    activemq consumer --brokerUrl "ssl://b-20f3cf89-7725-44b0-946b-19e84c03b81e-1.mq.ap-southeast-1.amazonaws.com:61617" \
+    activemq consumer --brokerUrl "ssl://b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com:61617" \
                     --user antipode \
                     --password antipode1antipode \
                     --destination queue://antipode-notifications
@@ -227,7 +242,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 
     - Double check with a producer
     ```
-    activemq producer --brokerUrl "ssl://b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com:61617" \
+    activemq producer --brokerUrl "ssl://b-92264a3d-516b-44ee-9432-dcd243569c72-1.mq.eu-central-1.amazonaws.com:61617" \
                 --user antipode \
                 --password antipode1antipode \
                 --destination queue://antipode-notifications \
@@ -236,7 +251,7 @@ NOTE: we should also change the replication priority for each deployment (input 
                 --messageCount 10
     ```
 
-    - Go the the dashboard and you should see 10 messages enqueued and dequeued
+    - Go the the dashboard of the created broker in AWS and you should see 10 messages enqueued and dequeued
 
 7. Create a secret for MQ lambda access on the primary region:
     `aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}' `

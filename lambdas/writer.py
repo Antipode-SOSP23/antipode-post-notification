@@ -38,7 +38,7 @@ def lambda_handler(event, context):
   write_post_rendezvous = getattr(importlib.import_module(POST_STORAGE), 'write_post_rendezvous')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-  rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
+  #endezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   # init Antipode service registry and request context
   if ANTIPODE:
@@ -49,25 +49,28 @@ def lambda_handler(event, context):
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
   if RENDEZVOUS:
-    import rendezvous as rdv, rendezvous_pb2 as rdv_proto, rendezvous_pb2_grpc as rdv_service
-    
+    import rendezvous as rdv, rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
     rid = context.aws_request_id
-    event['rid'] = rid
 
     channel = grpc.insecure_channel(_rendezvous_address('writer'))
-    stub = rdv_service.RendezvousServiceStub(channel)
+    stub = pb_grpc.ClientServiceStub(channel)
     try:
-      response = stub.registerBranches(rdv_proto.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post-storage'))
+      rendezvous_call_start_ts = datetime.utcnow().timestamp()
+      response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
+      rendezvous_call_end_ts = datetime.utcnow().timestamp()
+      event['rendezvous_call_writer_spent_ms'] = int((rendezvous_call_end_ts - rendezvous_call_start_ts) * 1000)
       bid = response.bid
-      event['rendezvous_context'] = rdv.context_proto_to_string(response.context)
+      event['rid'] = rid
+      #event['bid'] = bid
+      #event['rendezvous_context'] = rdv.context_proto_to_string(response.context)
+
     except grpc.RpcError as e:
       print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
-      return { 'statusCode': 500, 'body': json.dumps(event, default=str) }
+      raise e
     
-    # start thread that will close the branch for the current region
-    shim_layer = rendezvous_shim('writer', _region('writer'))
-    rendezvous = rdv.Rendezvous(shim_layer)
-    rendezvous.init_close_branch(rid)
+    #shim_layer = rendezvous_shim('writer', 'post_storage', _region('writer'))
+    #rendezvous = rdv.Rendezvous(shim_layer)
+    #rendezvous.close_branch(bid)
 
   #------
 
@@ -75,7 +78,7 @@ def lambda_handler(event, context):
   event['writer_start_at'] = datetime.utcnow().timestamp()
   
   if RENDEZVOUS:
-    op = write_post_rendezvous(i=event['i'], k=event['key'], rid=rid, bid=bid)
+    op = write_post_rendezvous(i=event['i'], k=event['key'], bid=bid)
   else:
     op = write_post(i=event['i'], k=event['key'])
 

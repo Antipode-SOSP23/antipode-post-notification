@@ -1,43 +1,36 @@
 import os
 import json
 from rendezvous_shim import RendezvousShim
+import time
 
 CACHE_RENDEZVOUS_PREFIX = os.environ['CACHE_RENDEZVOUS_PREFIX']
+CACHE_RENDEZVOUS_SORTED_SET = 'rendezvous_sorted_set'
+METADATA_VALIDITY_S = 120 # 2 minutes
 
 class RendezvousCache(RendezvousShim):
-  def __init__(self, conn, region):
-    super().__init__(region)
+  def __init__(self, conn, service, region):
+    super().__init__(service, region)
     self.conn = conn
     self.cursor = 0
 
-  def _cache_key_rendezvous(self, rid):
-    return f"{CACHE_RENDEZVOUS_PREFIX}:{rid}"
+  def _cache_key_rendezvous(self, bid):
+    return f"{CACHE_RENDEZVOUS_PREFIX}:{bid}"
   
   def _cache_prefix_rendezvous(self):
     return f"{CACHE_RENDEZVOUS_PREFIX}:*"
 
-# ----------------
-# Current request
-# ----------------
-
-  def read_metadata(self, rid):
-    while True:
-      item = self.conn.get(self._cache_key_rendezvous(rid))
-      if item:
-        metadata = json.loads(item)
-        return metadata['bid']
-      
-      self.inconsistency = True
-
-# -------------
-# All requests
-# -------------
+  def find_metadata(self, bid):
+    item = self.conn.get(self._cache_key_rendezvous(bid))
+    if item:
+      return True
+    return False
 
   def _parse_metadata(self, item):
     metadata = json.loads(item)
-    return metadata['rid'], metadata['bid']
+    return metadata['bid']
 
   def read_all_metadata(self):
+    result = []
     pipe = self.conn.pipeline()
 
     # track cursor to continue reading in the next function call
@@ -45,4 +38,11 @@ class RendezvousCache(RendezvousShim):
     for key in keys:
       pipe.get(key)
 
-    return pipe.execute()
+    items = pipe.execute()
+
+    #hardcoded filter
+    time_ago = time.time() + self.metadata_validity_s
+    for item in items:
+      if item['ts'] >= time_ago:
+        result.append(item)
+    return result

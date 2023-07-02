@@ -5,32 +5,23 @@ MYSQL_RENDEZVOUS_TABLE = os.environ['MYSQL_RENDEZVOUS_TABLE']
 RENDEZVOUS_ADDRESS = os.environ['RENDEZVOUS_ADDRESS']
 
 class RendezvousMysql(RendezvousShim):
-  def __init__(self, conn, region):
-    super().__init__(region)
+  def __init__(self, conn, service, region):
+    super().__init__(service, region)
     self.conn = conn
     self.offset = 0
     self.max_records = 10000
-    
-# ----------------
-# Current request
-# ----------------
 
-  def read_metadata(self, rid):
-    while True:
-      with self.conn.cursor() as cursor:
-        sql = f"SELECT `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `rid` = %s AND `ttl` > NOW()"
-        cursor.execute(sql, (rid,))
-        records = cursor.fetchall()
+  def find_metadata(self, bid):
+    with self.conn.cursor() as cursor:
+      sql = f"SELECT `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `bid` = %s"
+      cursor.execute(sql, (bid,))
+      records = cursor.fetchall()
 
-        if records:
-          return records[0][0]
-        
-        self.inconsistency = True
-
-
-# -------------
-# All requests
-# -------------
+      if records:
+        return records[0][0]
+      
+      self.inconsistency = True
+      return None
 
   def _parse_metadata(self, record):
     return record
@@ -38,8 +29,9 @@ class RendezvousMysql(RendezvousShim):
   def read_all_metadata(self):
     with self.conn.cursor() as cursor:
       # fetch non-expired metadata
-      sql = f"SELECT `rid`, `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `ttl` > NOW() ORDER BY `ttl` LIMIT %s,%s"
-      cursor.execute(sql, (self.offset, self.max_records))
+      # is it worth ordering just to control an offset??
+      sql = f"SELECT `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `ts` >= DATE_SUB(NOW(), INTERVAL %s SECOND) ORDER BY `ts` LIMIT %s,%s"
+      cursor.execute(sql, (self.metadata_validity_s, self.offset, self.max_records))
       records = cursor.fetchall()
       num_records = cursor.rowcount
 

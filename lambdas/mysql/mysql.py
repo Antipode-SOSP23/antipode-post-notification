@@ -2,9 +2,11 @@ import os
 import pymysql
 import pymysql.cursors
 from datetime import datetime
+import time
 
 MYSQL_POST_TABLE_NAME = os.environ['MYSQL_POST_TABLE_NAME']
 MYSQL_RENDEZVOUS_TABLE = os.environ['MYSQL_RENDEZVOUS_TABLE']
+RENDEZVOUS_METADATA_VALIDITY_S = 1800 # 30 minutes
 
 def _mysql_connection(role):
   # connect to mysql
@@ -43,20 +45,19 @@ def write_post(i,k):
     exit(-1)
 
 
-def write_post_rendezvous(i, k, rid, bid):
+def write_post_rendezvous(i, k, bid):
   try:
     # connect to mysql
     mysql_conn = _mysql_connection('writer')
     op = (MYSQL_POST_TABLE_NAME, 'v', k)
 
     with mysql_conn.cursor() as cursor:
-        
+        # post
         sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
-        cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
-
-        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE}` (`rid`, `bid`, `ttl`) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))"
-        cursor.execute(sql, (rid, bid))
-
+        cursor.execute(sql, (int(i), op[2], os.urandom(1000000), bid))
+        # rendezvous metadata
+        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE}` (`bid`, `ttl`) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))"
+        cursor.execute(sql, (bid, int(time.time()), RENDEZVOUS_METADATA_VALIDITY_S))
         mysql_conn.commit()
       
   except pymysql.Error as e:
@@ -81,10 +82,10 @@ def antipode_shim(id, role):
 
   return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))
 
-def rendezvous_shim(role, region):
+def rendezvous_shim(role, service, region):
   import rendezvous_mysql as rdv
 
-  return rdv.RendezvousMysql(_mysql_connection(role), region)
+  return rdv.RendezvousMysql(_mysql_connection(role), service, region)
 
 def clean():
   None

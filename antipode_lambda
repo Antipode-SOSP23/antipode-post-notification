@@ -16,8 +16,13 @@ import time
 #--------------
 # HELPERS
 #--------------
+
 def _dict_reverse_lookup(d, v):
-  return d.keys()[d.values().index(v)]
+  return list(d.keys())[list(d.values()).index(v)]
+
+# ORIGINAL:
+#def _dict_reverse_lookup(d, v):
+#  return d.keys()[d.values().index(v)]
 
 def _generate_payload(i):
   key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=NOTIFICATION_KEY_LEN - len(str(i)) - 1))
@@ -165,7 +170,7 @@ def _build_service(role, args):
               RENDEZVOUS: {{ rendezvous_enabled }}
               RENDEZVOUS_EU_CENTRAL_1: {{ rendezvous_eu }}
               RENDEZVOUS_US_EAST_1: {{ rendezvous_us }}
-              RENDEZVOUS_AP-SOUTHEAST-1: {{ rendezvous_ap }}
+              RENDEZVOUS_AP_SOUTHEAST_1: {{ rendezvous_ap }}
               DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
@@ -493,8 +498,12 @@ def clean__mysql():
       exit(-1)
 
     sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
+    #sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
     cursor.execute(sql)
     mysql_conn.commit()
+    #sql = f"CREATE INDEX idx_rdv_bix ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
+    #cursor.execute(sql)
+    #mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['post_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
@@ -513,7 +522,7 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (rid VARCHAR(255), bid VARCHAR(255), ttl DATETIME)"
+    sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (bid VARCHAR(255), ttl DATETIME)"
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table']}`"
@@ -848,12 +857,9 @@ def gather(args):
 
           if rendezvous_enabled:
             e['rendezvous_spent_ms'] = int(item['rendezvous_spent_ms'])
+            e['rendezvous_call_writer_spent_ms'] = int(item['rendezvous_call_writer_spent_ms'])
+            e['rendezvous_call_reader_spent_ms'] = int(item['rendezvous_call_reader_spent_ms'])
             e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])
-            # inconsistency window is only set if rendezvous prevented an inconsistency
-            if item['rendezvous_inconsistency_window_ms']:
-              e['rendezvous_inconsistency_window_ms'] = int(item['rendezvous_inconsistency_window_ms'])
-            else:
-              e['rendezvous_inconsistency_window_ms'] = None
 
           results[int(item['i'])] = e
           message.delete()
