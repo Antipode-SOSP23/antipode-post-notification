@@ -36,12 +36,12 @@ def write_post_rendezvous(i, k, bid):
     'rdv_bid': bid
     })
   
-  rendezvous_table = _conn('writer').Table(DYNAMO_RENDEZVOUS_TABLE)
-  rendezvous_table.put_item(Item={
-    'bid': bid,
-    'obj_key': str(k),
-    'ttl': int(time.time() + RENDEZVOUS_METADATA_VALIDITY_S)
-    })
+  #rendezvous_table = _conn('writer').Table(DYNAMO_RENDEZVOUS_TABLE)
+  #rendezvous_table.put_item(Item={
+  #  'bid': bid,
+  #  'obj_key': str(k),
+  #  'ttl': int(time.time() + RENDEZVOUS_METADATA_VALIDITY_S)
+  #  })
   
   return op
 
@@ -77,8 +77,9 @@ def write_notification(event):
     item['cscope']= event['cscope']
   if RENDEZVOUS:
     item['rid'] = str(event['rid'])
-    #item['bid'] = str(event['bid'])
-    #item['rendezvous_context'] = str(event['rendezvous_context'])
+    item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
+  else:
+    item['rid'] = str(event['rid'])
     item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
   # write the built item
   notifications_table.put_item(Item=item)
@@ -103,8 +104,9 @@ def parse_event(event):
         event['cscope'] = dynamo_event['dynamodb']['NewImage']['cscope']['S']
       if RENDEZVOUS:
         event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
-        #event['bid'] = dynamo_event['dynamodb']['NewImage']['bid']['S']
-        #event['rendezvous_context'] = dynamo_event['dynamodb']['NewImage']['rendezvous_context']['S']
+        event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
+      else:
+        event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
         event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event

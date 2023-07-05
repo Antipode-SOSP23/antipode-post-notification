@@ -38,7 +38,7 @@ def lambda_handler(event, context):
   write_post_rendezvous = getattr(importlib.import_module(POST_STORAGE), 'write_post_rendezvous')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-  #endezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
+  #rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   # init Antipode service registry and request context
   if ANTIPODE:
@@ -49,7 +49,9 @@ def lambda_handler(event, context):
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
   if RENDEZVOUS:
-    import rendezvous as rdv, rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
+    #rendezvous_start_ts = datetime.utcnow().timestamp()
+    import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
+    #import rendezvous as rdv
     rid = context.aws_request_id
 
     channel = grpc.insecure_channel(_rendezvous_address('writer'))
@@ -57,10 +59,11 @@ def lambda_handler(event, context):
     try:
       rendezvous_call_start_ts = datetime.utcnow().timestamp()
       response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
-      rendezvous_call_end_ts = datetime.utcnow().timestamp()
-      event['rendezvous_call_writer_spent_ms'] = int((rendezvous_call_end_ts - rendezvous_call_start_ts) * 1000)
-      bid = response.bid
+      rendezvous_end_ts = datetime.utcnow().timestamp()
+      #event['rendezvous_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
+      event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
       event['rid'] = rid
+      bid = response.bid
       #event['bid'] = bid
       #event['rendezvous_context'] = rdv.context_proto_to_string(response.context)
 
@@ -71,7 +74,10 @@ def lambda_handler(event, context):
     #shim_layer = rendezvous_shim('writer', 'post_storage', _region('writer'))
     #rendezvous = rdv.Rendezvous(shim_layer)
     #rendezvous.close_branch(bid)
-
+  else:
+    # dummies for testing
+    event['rendezvous_call_writer_spent_ms'] = 12345
+    event['rid'] = context.aws_request_id
   #------
 
   # mark timestamp of start of request processing - for visibility latency

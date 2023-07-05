@@ -7,7 +7,7 @@ lambda:
     eu-central-1:
       # cidr: 50.0.0.0/16
       vpc_id: vpc-046ebde198e614a9f
-      subnet_id: subnet-0a722afed0c224760
+      subnet_id: subnet-0392ab5735b5a96bb # 2
       security_group_id: sg-06e89d1eec9546ab5
     us-east-1:
       # cidr: 51.0.0.0/16
@@ -16,19 +16,19 @@ lambda:
       security_group_id: sg-0747aa4724f69efdd
     ap-southeast-1:
       # cidr: 52.0.0.0/16
-      vpc_id: vpc-06e0859f894b12cd3
-      subnet_id: subnet-0e875f312fed07247
-      security_group_id: sg-0a333b96e21577906
+      vpc_id: vpc-0ca0303d82a35a37b
+      subnet_id: subnet-00fe19722cde6a391
+      security_group_id: sg-0e09fa469362f52d2
   s3_buckets:
     eu-central-1: antipode-lambda-eu-rendezvous
     us-east-1: antipode-lambda-us-rendezvous
     ap-southeast-1: antipode-lambda-sg-rendezvous
 
 # when using storages that require vpc enabled (e.g. cache)
-# rendezvous ip address must refer to the PRIVATE one
+# rendezvous ip address must refer to the PRIVATE one, within the same vpc
 rendezvous:
-  eu-central-1: 18.197.60.247:8001
-  us-east-1: 3.83.158.201:8002
+  eu-central-1: 3.72.7.183:8001
+  us-east-1: 3.83.247.42:8002
   ap-southeast-1: n/a
 
 datastores:
@@ -57,7 +57,7 @@ datastores:
     antipode_table: cscopes
     rendezvous_table: rendezvous
     # reader us
-    notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:851889773113:table/keyvalue/stream/2023-04-19T10:28:17.397
+    notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:851889773113:table/keyvalue/stream/2023-07-05T16:16:02.535
     # reader sg
     notifications_table_stream_arn__ap-southeast-1: arn:aws:dynamodb:ap-southeast-1:851889773113:table/keyvalue/stream/2023-02-21T22:17:07.053
   sns:
@@ -83,13 +83,13 @@ datastores:
     notification_queue: antipode-notifications
     stomp_port: 61614
     # writer eu
-    name__eu-central-1: antipode-lambda-notifications-eu
-    arn__eu-central-1: arn:aws:mq:eu-central-1:851889773113:broker:antipode-lambda-notifications-eu:b-92264a3d-516b-44ee-9432-dcd243569c72
-    host__eu-central-1: b-92264a3d-516b-44ee-9432-dcd243569c72-1.mq.eu-central-1.amazonaws.com
+    name__eu-central-1: antipode-lambda-notifications-eu-correct
+    arn__eu-central-1: arn:aws:mq:eu-central-1:851889773113:broker:antipode-lambda-notifications-eu-correct:b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270
+    host__eu-central-1: b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270-1.mq.eu-central-1.amazonaws.com
     # reader us
-    name__us-east-1: antipode-lambda-notifications-us
-    arn__us-east-1: arn:aws:mq:us-east-1:851889773113:broker:antipode-lambda-notifications-us:b-baa166e8-bb48-4a51-a14f-ff736dca3367
-    host__us-east-1: b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com
+    name__us-east-1: antipode-lambda-notifications-eu
+    arn__us-east-1: arn:aws:mq:us-east-1:851889773113:broker:antipode-lambda-notifications-eu:b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83
+    host__us-east-1: b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83-1.mq.us-east-1.amazonaws.com
     secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:851889773113:secret:antipode-mq-YcUFaZ
     # reader sg
     name__ap-southeast-1: antipode-lambda-sg

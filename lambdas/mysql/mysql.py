@@ -52,12 +52,15 @@ def write_post_rendezvous(i, k, bid):
     op = (MYSQL_POST_TABLE_NAME, 'v', k)
 
     with mysql_conn.cursor() as cursor:
-        # post
-        sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
+        sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`, `rdv_bid`) VALUES (%s, %s, %s, %s)"
         cursor.execute(sql, (int(i), op[2], os.urandom(1000000), bid))
+
+        # post
+        #sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
+        #cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
         # rendezvous metadata
-        sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE}` (`bid`, `ttl`) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))"
-        cursor.execute(sql, (bid, int(time.time()), RENDEZVOUS_METADATA_VALIDITY_S))
+        #sql = f"INSERT INTO `{MYSQL_RENDEZVOUS_TABLE}` (`bid`, `ttl`) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))"
+        #cursor.execute(sql, (bid, int(time.time()), RENDEZVOUS_METADATA_VALIDITY_S))
         mysql_conn.commit()
       
   except pymysql.Error as e:

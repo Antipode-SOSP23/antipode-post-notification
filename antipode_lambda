@@ -497,13 +497,13 @@ def clean__mysql():
       print(f"[WARN] MySQL error: {e}")
       exit(-1)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
-    #sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
+    #sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
+    sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
     cursor.execute(sql)
     mysql_conn.commit()
-    #sql = f"CREATE INDEX idx_rdv_bix ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
-    #cursor.execute(sql)
-    #mysql_conn.commit()
+    sql = f"CREATE INDEX rdv_bid-index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
+    cursor.execute(sql)
+    mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['post_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
@@ -522,12 +522,12 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (bid VARCHAR(255), ttl DATETIME)"
-    cursor.execute(sql)
-    mysql_conn.commit()
-    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table']}`"
-    cursor.execute(sql)
-    assert(cursor.fetchone()[0] == 0)
+    #sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (bid VARCHAR(255), ttl DATETIME)"
+    #cursor.execute(sql)
+    #mysql_conn.commit()
+    #sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table']}`"
+    #cursor.execute(sql)
+    #assert(cursor.fetchone()[0] == 0)
 
     print("Done!")
 
@@ -850,13 +850,16 @@ def gather(args):
             'post_read_at': float(item['post_read_at']),
             'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
-            # 'post_written_at': int(item['post_written_at']),
+            'post_written_at': int(item['post_written_at']),
+            'write_post_spent_ms': int((item['post_written_at']- item['writer_start_at']) * 1000),
+            'read_post_spent_ms': int(item['read_post_spent_ms'])
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
 
           if rendezvous_enabled:
-            e['rendezvous_spent_ms'] = int(item['rendezvous_spent_ms'])
+            #e['rendezvous_writer_spent_ms'] = int(item['rendezvous_writer_spent_ms'])
+            #e['rendezvous_reader_spent_ms'] = int(item['rendezvous_reader_spent_ms'])
             e['rendezvous_call_writer_spent_ms'] = int(item['rendezvous_call_writer_spent_ms'])
             e['rendezvous_call_reader_spent_ms'] = int(item['rendezvous_call_reader_spent_ms'])
             e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])

@@ -227,14 +227,14 @@ NOTE: we should also change the replication priority for each deployment (input 
     ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
     ```xml
     <networkConnectors>
-        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
     </networkConnectors>
     ```
 
 5. Go the broker again and change the REVISION of the configuration file and do APPLY IMMEDEATLY
 6. Create a consumer on a secondary region to the primary region (change url):
     ```
-    activemq consumer --brokerUrl "ssl://b-baa166e8-bb48-4a51-a14f-ff736dca3367-1.mq.us-east-1.amazonaws.com:61617" \
+    activemq consumer --brokerUrl "ssl://b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83-1.mq.us-east-1.amazonaws.com:61617" \
                     --user antipode \
                     --password antipode1antipode \
                     --destination queue://antipode-notifications
@@ -242,7 +242,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 
     - Double check with a producer
     ```
-    activemq producer --brokerUrl "ssl://b-92264a3d-516b-44ee-9432-dcd243569c72-1.mq.eu-central-1.amazonaws.com:61617" \
+    activemq producer --brokerUrl "ssl://b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270-1.mq.eu-central-1.amazonaws.com:61617" \
                 --user antipode \
                 --password antipode1antipode \
                 --destination queue://antipode-notifications \
@@ -251,7 +251,7 @@ NOTE: we should also change the replication priority for each deployment (input 
                 --messageCount 10
     ```
 
-    - Go the the dashboard of the created broker in AWS and you should see 10 messages enqueued and dequeued
+    - Go the the dashboard of the created broker in AWS (ActiveMQ Web Console -> Manage ActiveMQ Brokcer -> Queues) and you should see 10 messages enqueued and dequeued
 
 7. Create a secret for MQ lambda access on the primary region:
     `aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}' `

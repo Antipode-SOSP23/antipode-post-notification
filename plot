@@ -21,6 +21,8 @@ import yaml
 #--------------
 
 def plot__visibility_latency_overhead(config):
+  rendezvous = False
+  
   # Apply the default theme
   sns.set_theme(style='ticks')
   plt.rcParams["figure.figsize"] = [6,2.9]
@@ -52,20 +54,32 @@ def plot__visibility_latency_overhead(config):
       run_type = 'Antipode'
     elif 'rendezvous' in traces_filepath.parts[-2]:
       run_type = 'Rendezvous'
+      rendezvous = True
     else:
       run_type = 'Original'
 
     df = pd.read_csv(traces_filepath,sep=';',index_col=0)
     
-    if run_type == 'Rendezvous':
+    if rendezvous and run_type == 'Rendezvous':
       data[post_storage][run_type] = {}
       data[post_storage][run_type]['visibility'] = round(df['writer_visibility_latency_ms'].mean())
       total_call_spent = df['rendezvous_call_writer_spent_ms'].mean() + df['rendezvous_call_reader_spent_ms'].mean()
-      data[post_storage][run_type]['rpc'] = round(total_call_spent)
+      data[post_storage][run_type]['rdv_call_total_spent'] = round(total_call_spent)
+      data[post_storage][run_type]['rdv_call_writer_spent'] = round(df['rendezvous_call_writer_spent_ms'].mean())
+      data[post_storage][run_type]['rdv_call_reader_spent'] = round(df['rendezvous_call_reader_spent_ms'].mean())
+      data[post_storage][run_type]['write_post_spent'] = round(df['write_post_spent_ms'].mean())
+    elif rendezvous and run_type == 'Original':
+      data[post_storage][run_type] = {}
+      data[post_storage][run_type]['total'] = round(df['writer_visibility_latency_ms'].mean())
+      data[post_storage][run_type]['write_post_spent'] = round(df['write_post_spent_ms'].mean())
+      pass
+    
     else:
       # ORIGINAL:
       #data[post_storage][run_type] = round(df['visibility_latency_ms'].mean())
       data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
+
+  print("data before=", data)
 
   data = list(data.values())
 
@@ -75,36 +89,62 @@ def plot__visibility_latency_overhead(config):
     if 'Antipode' in d and 'Original' in d:
       d['Antipode'] = max(0, d['Antipode'] - d['Original'])
     elif 'Rendezvous' in d and 'Original' in d:
-      d['Rendezvous RPCs'] = d['Rendezvous']['rpc']
-      d['Rendezvous'] = max(0, d['Rendezvous']['visibility'] - d['Rendezvous']['rpc'] - d['Original'])
+      d['Original (Remaining)'] = max(0, d['Original']['total'] - d['Original']['write_post_spent'])
+      d['Original Write Post'] = d['Original']['write_post_spent']
       
+      #d['Rendezvous Call Total Spent'] = d['Rendezvous']['rdv_call_total_spent']
+      d['Rdv (Remaining)'] = max(0, d['Rendezvous']['visibility'] - d['Rendezvous']['rdv_call_total_spent'] - d['Rendezvous']['write_post_spent'] - d['Original']['total'])
+      d['Rdv Write Post'] = d['Rendezvous']['write_post_spent']
+      d['Rdv Call Writer (RBs)'] = d['Rendezvous']['rdv_call_writer_spent']
+      d['Rdv Call Reader (WR)'] = d['Rendezvous']['rdv_call_reader_spent']
+      del d['Rendezvous']
+      del d['Original']
+
+    #print("d=", d, "\n")
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
   print("df=" , df)
   log = False
+
+  if rendezvous:
+    original_baseline_bar_color = '#0039a6' # blue
+    original_write_post_bar_color = '#318CE7' # light blue
+    rendezvous_baseline_bar_color = '#006400' # dark green
+    rendezvous_write_post_bar_color = '#008000' # green
+    rendezvous_top_bars_color = '#15B01A' # light green
+    bar_colors = [original_baseline_bar_color, original_write_post_bar_color, rendezvous_baseline_bar_color, rendezvous_write_post_bar_color]
+    for _ in range(2): # calls to rendezvous server
+      bar_colors.append(rendezvous_top_bars_color)
+  else:
+    bar_colors = None
+
+
   if log:
-    ax = df.plot(kind='bar', stacked=True, logy=True)
+    ax = df.plot(kind='bar', stacked=True, logy=True, color=bar_colors)
     ax.set_ylim(1, 100000)
     plt.xticks(rotation = 0)
   else:
-    ax = df.plot(kind='bar', stacked=True, logy=False)
+    ax = df.plot(kind='bar', stacked=True, logy=False, color=bar_colors)
     plt.xticks(rotation = 0)
 
   ax.set_ylabel('Consistency Window (ms)')
   ax.set_xlabel('')
 
   # rendezvous uses 3 bars
-  if len(ax.containers) == 3:
-    ax.set_ylim(1, 37500)
+  if rendezvous:
+    #ax.set_ylim(1, 37500)
     # plot baseline bar
     ax.bar_label(ax.containers[0], label_type='center', fontsize=6, weight='bold', color='white')
     # plot overhead middle bar (rendezvous baseline)
-    labels = [ "" for e in ax.containers[1].datavalues ]
-    ax.bar_label(ax.containers[1], labels=labels, label_type='center', fontsize=6, weight='bold', color='white')
+    #labels = [ "" for e in ax.containers[1].datavalues ]
     # plot overhead top bar (rendezvous w/ rpcs)
-    labels = [ f"+ {round(e)}\n+ {round(ax.containers[1].datavalues[i])}" for i, e in enumerate(ax.containers[2].datavalues) ]
-    ax.bar_label(ax.containers[2], labels=labels, label_type='edge', fontsize=6, weight='bold', color='black')
+    #labels = [ f"+ {round(e)}\n+ {round(ax.containers[1].datavalues[i])}" for i, e in enumerate(ax.containers[2].datavalues) ]
+    
+    for i in range(1, 6):
+      labels = [ f"+{round(e)}" for e in ax.containers[i].datavalues ]
+      ax.bar_label(ax.containers[i], labels=labels, label_type='center', fontsize=6, weight='bold', color='white')
+    
   else:
     # plot baseline bar
     ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')

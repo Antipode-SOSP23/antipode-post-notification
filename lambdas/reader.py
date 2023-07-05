@@ -54,9 +54,11 @@ def lambda_handler(event, context):
     'reader_received_at': received_at,
     'notification_to_reader_spent_ms': int((received_at - event['notification_written_at']) * 1000),
     'post_read_at': None,
+    'read_post_spent_ms': None,
     'consistent_read' : 0,
     'antipode_spent_ms': None,
-    'rendezvous_spent_ms': None,
+    #'rendezvous_writer_spent_ms': None,
+    #'rendezvous_reader_spent_ms': None,
     'rendezvous_call_writer_spent_ms':  None,
     'rendezvous_call_reader_spent_ms': None,
     'rendezvous_prevented_inconsistency': 0,
@@ -82,9 +84,9 @@ def lambda_handler(event, context):
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   if RENDEZVOUS:
-    rendezvous_start_ts = datetime.utcnow().timestamp()
+    #rendezvous_start_ts = datetime.utcnow().timestamp()
 
-    import rendezvous as rdv
+    #import rendezvous as rdv
     rid = event['rid']
     #bid = event['bid']
 
@@ -98,11 +100,11 @@ def lambda_handler(event, context):
     stub = pb_grpc.ClientServiceStub(channel)
     try:
       #rendezvous_context = rdv.context_string_to_proto(event['rendezvous_context'])
-      request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=60)
+      request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=300)
       #request.context.CopyFrom(rendezvous_context)
 
       rendezvous_call_start_ts = datetime.utcnow().timestamp()
-      response = stub.WaitRequest(request) # timeout of 300 seconds (safe for s3)
+      response = stub.WaitRequest(request)
       rendezvous_end_ts = datetime.utcnow().timestamp()
 
       # rendezvous evaluation for prevented inconsistencies
@@ -112,10 +114,12 @@ def lambda_handler(event, context):
         
       elif response.prevented_inconsistency == -1:
         print(f"[INFO] Rendezvous wait call timedout", flush=True)
+        raise # just to be able to verify later
       
       evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
       evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
-      evaluation['rendezvous_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
+      #evaluation['rendezvous_writer_spent_ms'] = event['rendezvous_writer_spent_ms']
+      #evaluation['rendezvous_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
 
           
     except grpc.RpcError as e:
@@ -123,9 +127,12 @@ def lambda_handler(event, context):
       raise e
 
   # read post and fill evaluation
+  post_start_read_at = datetime.utcnow().timestamp()
   evaluation['consistent_read'] = int(read_post(event['key'], evaluation))
   # keep time of read - visibility latency
-  evaluation['post_read_at'] = datetime.utcnow().timestamp()
+  post_read_at = datetime.utcnow().timestamp()
+  evaluation['post_read_at'] = post_read_at
+  evaluation['read_post_spent_ms'] = int((post_read_at-post_start_read_at) * 1000)
 
   # write evaluation to SQS queue
   # due to bug with VPC and SQS we have to be explicit regarding the endpoint url

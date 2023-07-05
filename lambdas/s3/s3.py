@@ -38,10 +38,11 @@ def write_post_rendezvous(i, k, bid):
         'rdv_bid': bid
     }
   )
+  # rendezvous stores object key for later lookups
   s3_client.put_object(
     Bucket=_bucket('writer'),
     Key=_bucket_key_rendezvous(bid),
-    Body=json.dumps({'obj_key': str(k)})
+    Body=str(k)
   )
 
   return (_bucket('reader'), str(k))
