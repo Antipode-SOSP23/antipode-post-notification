@@ -49,9 +49,7 @@ def lambda_handler(event, context):
     cscope = ant.Cscope(SERVICE_REGISTRY)
 
   if RENDEZVOUS:
-    #rendezvous_start_ts = datetime.utcnow().timestamp()
     import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
-    #import rendezvous as rdv
     rid = context.aws_request_id
 
     channel = grpc.insecure_channel(_rendezvous_address('writer'))
@@ -60,24 +58,13 @@ def lambda_handler(event, context):
       rendezvous_call_start_ts = datetime.utcnow().timestamp()
       response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
       rendezvous_end_ts = datetime.utcnow().timestamp()
-      #event['rendezvous_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
       event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
       event['rid'] = rid
       bid = response.bid
-      #event['bid'] = bid
-      #event['rendezvous_context'] = rdv.context_proto_to_string(response.context)
 
     except grpc.RpcError as e:
       print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
       raise e
-    
-    #shim_layer = rendezvous_shim('writer', 'post_storage', _region('writer'))
-    #rendezvous = rdv.Rendezvous(shim_layer)
-    #rendezvous.close_branch(bid)
-  else:
-    # dummies for testing
-    event['rendezvous_call_writer_spent_ms'] = 12345
-    event['rid'] = context.aws_request_id
   #------
 
   # mark timestamp of start of request processing - for visibility latency

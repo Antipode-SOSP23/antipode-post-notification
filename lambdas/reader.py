@@ -33,7 +33,6 @@ def lambda_handler(event, context):
   parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
   read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-  #rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   received_at = datetime.utcnow().timestamp()
 
@@ -57,8 +56,6 @@ def lambda_handler(event, context):
     'read_post_spent_ms': None,
     'consistent_read' : 0,
     'antipode_spent_ms': None,
-    #'rendezvous_writer_spent_ms': None,
-    #'rendezvous_reader_spent_ms': None,
     'rendezvous_call_writer_spent_ms':  None,
     'rendezvous_call_reader_spent_ms': None,
     'rendezvous_prevented_inconsistency': 0,
@@ -84,31 +81,19 @@ def lambda_handler(event, context):
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   if RENDEZVOUS:
-    #rendezvous_start_ts = datetime.utcnow().timestamp()
-
-    #import rendezvous as rdv
     rid = event['rid']
-    #bid = event['bid']
-
-    #shim_layer = rendezvous_shim('reader', 'post_storage'+rid, _region('reader'))
-    #rendezvous = rdv.Rendezvous(shim_layer)
-    #rendezvous.close_branch(bid)
 
     import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 
     channel = grpc.insecure_channel(_rendezvous_address('reader'))
     stub = pb_grpc.ClientServiceStub(channel)
     try:
-      #rendezvous_context = rdv.context_string_to_proto(event['rendezvous_context'])
       request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=300)
-      #request.context.CopyFrom(rendezvous_context)
 
       rendezvous_call_start_ts = datetime.utcnow().timestamp()
       response = stub.WaitRequest(request)
       rendezvous_end_ts = datetime.utcnow().timestamp()
 
-      # rendezvous evaluation for prevented inconsistencies
-      #if rendezvous.prevented_inconsistency():
       if response.prevented_inconsistency == 1:
         evaluation['rendezvous_prevented_inconsistency'] = 1
         
@@ -118,8 +103,6 @@ def lambda_handler(event, context):
       
       evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
       evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
-      #evaluation['rendezvous_writer_spent_ms'] = event['rendezvous_writer_spent_ms']
-      #evaluation['rendezvous_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_start_ts) * 1000)
 
           
     except grpc.RpcError as e:

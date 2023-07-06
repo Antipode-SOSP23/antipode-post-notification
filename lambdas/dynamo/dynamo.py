@@ -105,9 +105,6 @@ def parse_event(event):
       if RENDEZVOUS:
         event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
         event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
-      else:
-        event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
-        event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:
