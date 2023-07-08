@@ -85,29 +85,28 @@ def lambda_handler(event, context):
 
     import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 
-    channel = grpc.insecure_channel(_rendezvous_address('reader'))
-    stub = pb_grpc.ClientServiceStub(channel)
-    try:
-      request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=300)
+    with grpc.insecure_channel(_rendezvous_address('reader')) as channel:
+      stub = pb_grpc.ClientServiceStub(channel)
+      try:
+        request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=300)
 
-      rendezvous_call_start_ts = datetime.utcnow().timestamp()
-      response = stub.WaitRequest(request)
-      rendezvous_end_ts = datetime.utcnow().timestamp()
+        rendezvous_call_start_ts = datetime.utcnow().timestamp()
+        response = stub.WaitRequest(request)
+        rendezvous_end_ts = datetime.utcnow().timestamp()
 
-      if response.prevented_inconsistency == 1:
-        evaluation['rendezvous_prevented_inconsistency'] = 1
-        
-      elif response.prevented_inconsistency == -1:
-        print(f"[INFO] Rendezvous wait call timedout", flush=True)
-        raise # just to be able to verify later
-      
-      evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
-      evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
-
+        if response.prevented_inconsistency == 1:
+          evaluation['rendezvous_prevented_inconsistency'] = 1
           
-    except grpc.RpcError as e:
-      print(f"[ERROR] Rendezvous exception waiting request: {e.details()}", flush=True)
-      raise e
+        elif response.prevented_inconsistency == -1:
+          print(f"[INFO] Rendezvous wait call timedout", flush=True)
+          raise # just to be able to verify later
+        
+        evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
+        evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
+            
+      except grpc.RpcError as e:
+        print(f"[ERROR] Rendezvous exception waiting request: {e.details()}", flush=True)
+        raise e
 
   # read post and fill evaluation
   post_start_read_at = datetime.utcnow().timestamp()

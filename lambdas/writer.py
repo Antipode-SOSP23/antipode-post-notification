@@ -38,7 +38,6 @@ def lambda_handler(event, context):
   write_post_rendezvous = getattr(importlib.import_module(POST_STORAGE), 'write_post_rendezvous')
   write_notification = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'write_notification')
   antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-  #rendezvous_shim = getattr(importlib.import_module(POST_STORAGE), 'rendezvous_shim')
 
   # init Antipode service registry and request context
   if ANTIPODE:
@@ -52,29 +51,28 @@ def lambda_handler(event, context):
     import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
     rid = context.aws_request_id
 
-    channel = grpc.insecure_channel(_rendezvous_address('writer'))
-    stub = pb_grpc.ClientServiceStub(channel)
-    try:
-      rendezvous_call_start_ts = datetime.utcnow().timestamp()
-      response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
-      rendezvous_end_ts = datetime.utcnow().timestamp()
-      event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
-      event['rid'] = rid
-      bid = response.bid
+    with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
+      stub = pb_grpc.ClientServiceStub(channel)
+      try:
+        rendezvous_call_start_ts = datetime.utcnow().timestamp()
+        response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
+        rendezvous_end_ts = datetime.utcnow().timestamp()
+        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
+        event['rid'] = rid
+        bid = response.bid
 
-    except grpc.RpcError as e:
-      print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
-      raise e
+      except grpc.RpcError as e:
+        print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
+        raise e
   #------
 
   # mark timestamp of start of request processing - for visibility latency
+
   event['writer_start_at'] = datetime.utcnow().timestamp()
-  
   if RENDEZVOUS:
     op = write_post_rendezvous(i=event['i'], k=event['key'], bid=bid)
   else:
     op = write_post(i=event['i'], k=event['key'])
-
   event['post_written_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:

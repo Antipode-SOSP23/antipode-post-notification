@@ -497,13 +497,19 @@ def clean__mysql():
       print(f"[WARN] MySQL error: {e}")
       exit(-1)
 
-    #sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
-    sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
+    if _get_last('rendezvous_enabled'):
+      sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
+    else:
+      sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
+    
     cursor.execute(sql)
     mysql_conn.commit()
-    sql = f"CREATE INDEX rdv_bid-index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
-    cursor.execute(sql)
-    mysql_conn.commit()
+
+    if _get_last('rendezvous_enabled'):
+      sql = f"CREATE INDEX rdv_bid_index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
+      cursor.execute(sql)
+      mysql_conn.commit()
+
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['post_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
@@ -521,13 +527,6 @@ def clean__mysql():
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
-
-    #sql = f"CREATE TABLE `{MYSQL_CONN['rendezvous_table']}` (bid VARCHAR(255), ttl DATETIME)"
-    #cursor.execute(sql)
-    #mysql_conn.commit()
-    #sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table']}`"
-    #cursor.execute(sql)
-    #assert(cursor.fetchone()[0] == 0)
 
     print("Done!")
 

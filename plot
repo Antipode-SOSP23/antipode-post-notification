@@ -72,14 +72,10 @@ def plot__visibility_latency_overhead(config):
       data[post_storage][run_type] = {}
       data[post_storage][run_type]['total'] = round(df['writer_visibility_latency_ms'].mean())
       data[post_storage][run_type]['write_post_spent'] = round(df['write_post_spent_ms'].mean())
-      pass
-    
     else:
       # ORIGINAL:
       #data[post_storage][run_type] = round(df['visibility_latency_ms'].mean())
       data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
-
-  print("data before=", data)
 
   data = list(data.values())
 
@@ -89,32 +85,30 @@ def plot__visibility_latency_overhead(config):
     if 'Antipode' in d and 'Original' in d:
       d['Antipode'] = max(0, d['Antipode'] - d['Original'])
     elif 'Rendezvous' in d and 'Original' in d:
-      d['Original (Remaining)'] = max(0, d['Original']['total'] - d['Original']['write_post_spent'])
-      d['Original Write Post'] = d['Original']['write_post_spent']
+      d['Original '] = max(0, d['Original']['total'] - d['Original']['write_post_spent'])
+      d['Original (Write Post)'] = d['Original']['write_post_spent']
       
       #d['Rendezvous Call Total Spent'] = d['Rendezvous']['rdv_call_total_spent']
-      d['Rdv (Remaining)'] = max(0, d['Rendezvous']['visibility'] - d['Rendezvous']['rdv_call_total_spent'] - d['Rendezvous']['write_post_spent'] - d['Original']['total'])
-      d['Rdv Write Post'] = d['Rendezvous']['write_post_spent']
-      d['Rdv Call Writer (RBs)'] = d['Rendezvous']['rdv_call_writer_spent']
-      d['Rdv Call Reader (WR)'] = d['Rendezvous']['rdv_call_reader_spent']
+      #d['Rdv (Remaining)'] = max(0, d['Rendezvous']['visibility'] - d['Rendezvous']['rdv_call_total_spent'] - d['Rendezvous']['write_post_spent'] - d['Original']['total'])
+      d['Rendezvous (Write Post)'] = d['Rendezvous']['write_post_spent']
+      #d['Rdv Call Writer (RBs)'] = d['Rendezvous']['rdv_call_writer_spent']
+      d['Rendezvous (Wait Request)'] = d['Rendezvous']['rdv_call_reader_spent']
       del d['Rendezvous']
       del d['Original']
-
-    #print("d=", d, "\n")
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
   print("df=" , df)
-  log = False
+  log = True
 
-  if rendezvous:
-    original_baseline_bar_color = '#0039a6' # blue
-    original_write_post_bar_color = '#318CE7' # light blue
-    rendezvous_baseline_bar_color = '#006400' # dark green
-    rendezvous_write_post_bar_color = '#008000' # green
-    rendezvous_top_bars_color = '#15B01A' # light green
-    bar_colors = [original_baseline_bar_color, original_write_post_bar_color, rendezvous_baseline_bar_color, rendezvous_write_post_bar_color]
-    for _ in range(2): # calls to rendezvous server
+  if rendezvous: # default blue: #1f77b4; default green: #2ca02c
+    original_baseline_bar_color = '#1f77b4' # blue
+    original_write_post_bar_color = '#248cd4' # light blue
+    #rendezvous_baseline_bar_color = '#006400' # dark green
+    rendezvous_write_post_bar_color = '#2ca02c' # green
+    rendezvous_top_bars_color = '#26c03a' # light green
+    bar_colors = [original_baseline_bar_color, original_write_post_bar_color, rendezvous_write_post_bar_color]
+    for _ in range(1): # calls to rendezvous server
       bar_colors.append(rendezvous_top_bars_color)
   else:
     bar_colors = None
@@ -122,7 +116,7 @@ def plot__visibility_latency_overhead(config):
 
   if log:
     ax = df.plot(kind='bar', stacked=True, logy=True, color=bar_colors)
-    ax.set_ylim(1, 100000)
+    ax.set_ylim(1, 10000)
     plt.xticks(rotation = 0)
   else:
     ax = df.plot(kind='bar', stacked=True, logy=False, color=bar_colors)
@@ -133,17 +127,20 @@ def plot__visibility_latency_overhead(config):
 
   # rendezvous uses 3 bars
   if rendezvous:
-    #ax.set_ylim(1, 37500)
+    ax.set_ylim(1, 10000000)
     # plot baseline bar
-    ax.bar_label(ax.containers[0], label_type='center', fontsize=6, weight='bold', color='white')
+    ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
     # plot overhead middle bar (rendezvous baseline)
     #labels = [ "" for e in ax.containers[1].datavalues ]
     # plot overhead top bar (rendezvous w/ rpcs)
     #labels = [ f"+ {round(e)}\n+ {round(ax.containers[1].datavalues[i])}" for i, e in enumerate(ax.containers[2].datavalues) ]
     
-    for i in range(1, 6):
-      labels = [ f"+{round(e)}" for e in ax.containers[i].datavalues ]
-      ax.bar_label(ax.containers[i], labels=labels, label_type='center', fontsize=6, weight='bold', color='white')
+    for i in range(1, 3):
+      labels = [ f"" for e in ax.containers[i].datavalues ]
+      ax.bar_label(ax.containers[i], labels=labels, label_type='center', fontsize=6, weight='bold', color='black')
+
+    labels = [ f"+{round(e)}" for e in ax.containers[3].datavalues ]
+    ax.bar_label(ax.containers[3], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
     
   else:
     # plot baseline bar
@@ -155,11 +152,11 @@ def plot__visibility_latency_overhead(config):
 
   # reverse order of legend
   handles, labels = ax.get_legend_handles_labels()
-  ax.legend(handles[::-1], labels[::-1])
+  ax.legend(handles[::-1], labels[::-1],)
 
   # save with a unique timestamp
   plt.tight_layout()
-  plot_filename = f"visibility_latency_overhead_{run_type}__{datetime.now().strftime('%Y%m%d%H%M')}"
+  plot_filename = f"visibility_latency_overhead__{datetime.now().strftime('%Y%m%d%H%M')}"
   plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
 
