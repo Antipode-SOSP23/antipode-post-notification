@@ -21,16 +21,21 @@ import yaml
 #--------------
 
 def plot__visibility_latency_overhead(config):
-  rendezvous = False
-  
+  rendezvous = _plot_overhead(config, 'writer_visibility_latency_ms', True)
+  if rendezvous:
+    _plot_overhead(config, 'write_post_spent_ms', False)
+
+def _plot_overhead(config, metric, log=True):  
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,2.9]
+  y_size = 2.9 if metric == 'writer_visibility_latency_ms' else 2.3
+  plt.rcParams["figure.figsize"] = [6, y_size]
   plt.rcParams["figure.dpi"] = 600
   plt.rcParams['axes.labelsize'] = 'small'
 
   # <Post Storage>-SNS
   data = {}
+  rendezvous = False
   for gather_path in config['gather_paths']:
     # 'Post Storage': 'DynamoDB',
     # # 'Overhead Visibility latency %': (1551.94 / 544.02) * 100.0,
@@ -60,22 +65,7 @@ def plot__visibility_latency_overhead(config):
 
     df = pd.read_csv(traces_filepath,sep=';',index_col=0)
     
-    if rendezvous and run_type == 'Rendezvous':
-      data[post_storage][run_type] = {}
-      data[post_storage][run_type]['visibility'] = round(df['writer_visibility_latency_ms'].mean())
-      total_call_spent = df['rendezvous_call_writer_spent_ms'].mean() + df['rendezvous_call_reader_spent_ms'].mean()
-      data[post_storage][run_type]['rdv_call_total_spent'] = round(total_call_spent)
-      data[post_storage][run_type]['rdv_call_writer_spent'] = round(df['rendezvous_call_writer_spent_ms'].mean())
-      data[post_storage][run_type]['rdv_call_reader_spent'] = round(df['rendezvous_call_reader_spent_ms'].mean())
-      data[post_storage][run_type]['write_post_spent'] = round(df['write_post_spent_ms'].mean())
-    elif rendezvous and run_type == 'Original':
-      data[post_storage][run_type] = {}
-      data[post_storage][run_type]['total'] = round(df['writer_visibility_latency_ms'].mean())
-      data[post_storage][run_type]['write_post_spent'] = round(df['write_post_spent_ms'].mean())
-    else:
-      # ORIGINAL:
-      #data[post_storage][run_type] = round(df['visibility_latency_ms'].mean())
-      data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
+    data[post_storage][run_type] = round(df[metric].mean())
 
   data = list(data.values())
 
@@ -85,69 +75,38 @@ def plot__visibility_latency_overhead(config):
     if 'Antipode' in d and 'Original' in d:
       d['Antipode'] = max(0, d['Antipode'] - d['Original'])
     elif 'Rendezvous' in d and 'Original' in d:
-      d['Original '] = max(0, d['Original']['total'] - d['Original']['write_post_spent'])
-      d['Original (Write Post)'] = d['Original']['write_post_spent']
-      
-      #d['Rendezvous Call Total Spent'] = d['Rendezvous']['rdv_call_total_spent']
-      #d['Rdv (Remaining)'] = max(0, d['Rendezvous']['visibility'] - d['Rendezvous']['rdv_call_total_spent'] - d['Rendezvous']['write_post_spent'] - d['Original']['total'])
-      d['Rendezvous (Write Post)'] = d['Rendezvous']['write_post_spent']
-      #d['Rdv Call Writer (RBs)'] = d['Rendezvous']['rdv_call_writer_spent']
-      d['Rendezvous (Wait Request)'] = d['Rendezvous']['rdv_call_reader_spent']
-      del d['Rendezvous']
-      del d['Original']
+      d['Rendezvous'] = max(0, d['Rendezvous'] - d['Original'])
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
-  print("df=" , df)
-  log = True
+  pp(df)
 
-  if rendezvous: # default blue: #1f77b4; default green: #2ca02c
-    original_baseline_bar_color = '#1f77b4' # blue
-    original_write_post_bar_color = '#248cd4' # light blue
-    #rendezvous_baseline_bar_color = '#006400' # dark green
-    rendezvous_write_post_bar_color = '#2ca02c' # green
-    rendezvous_top_bars_color = '#26c03a' # light green
-    bar_colors = [original_baseline_bar_color, original_write_post_bar_color, rendezvous_write_post_bar_color]
-    for _ in range(1): # calls to rendezvous server
-      bar_colors.append(rendezvous_top_bars_color)
-  else:
-    bar_colors = None
-
+  bar_colors = None
 
   if log:
     ax = df.plot(kind='bar', stacked=True, logy=True, color=bar_colors)
-    ax.set_ylim(1, 10000)
+    if rendezvous:
+      ax.set_ylim(1, 100000)
+    else:
+      ax.set_ylim(1, 10000)
     plt.xticks(rotation = 0)
   else:
     ax = df.plot(kind='bar', stacked=True, logy=False, color=bar_colors)
+    if rendezvous:
+      ax.set_ylim(1, 1450)
     plt.xticks(rotation = 0)
 
-  ax.set_ylabel('Consistency Window (ms)')
+  if metric == 'writer_visibility_latency_ms':
+    ax.set_ylabel('Consistency Window (ms)')
+  else:
+    ax.set_ylabel('Write Post (ms)')
   ax.set_xlabel('')
 
-  # rendezvous uses 3 bars
-  if rendezvous:
-    ax.set_ylim(1, 10000000)
-    # plot baseline bar
-    ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
-    # plot overhead middle bar (rendezvous baseline)
-    #labels = [ "" for e in ax.containers[1].datavalues ]
-    # plot overhead top bar (rendezvous w/ rpcs)
-    #labels = [ f"+ {round(e)}\n+ {round(ax.containers[1].datavalues[i])}" for i, e in enumerate(ax.containers[2].datavalues) ]
-    
-    for i in range(1, 3):
-      labels = [ f"" for e in ax.containers[i].datavalues ]
-      ax.bar_label(ax.containers[i], labels=labels, label_type='center', fontsize=6, weight='bold', color='black')
-
-    labels = [ f"+{round(e)}" for e in ax.containers[3].datavalues ]
-    ax.bar_label(ax.containers[3], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
-    
-  else:
-    # plot baseline bar
-    ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
-    # plot overhead bar
-    labels = [ f"+ {round(e)}" for e in ax.containers[1].datavalues ]
-    ax.bar_label(ax.containers[1], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
+  # plot baseline bar
+  ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
+  # plot overhead bar
+  labels = [ f"+ {round(e)}" for e in ax.containers[1].datavalues ]
+  ax.bar_label(ax.containers[1], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
     
 
   # reverse order of legend
@@ -156,10 +115,14 @@ def plot__visibility_latency_overhead(config):
 
   # save with a unique timestamp
   plt.tight_layout()
-  plot_filename = f"visibility_latency_overhead__{datetime.now().strftime('%Y%m%d%H%M')}"
+  if metric == 'writer_visibility_latency_ms':
+    plot_basename = 'visibility_latency_overhead'
+  else:
+    plot_basename = 'write_post_overhead'
+  plot_filename = f"{plot_basename}__{datetime.now().strftime('%Y%m%d%H%M')}"
   plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
-
+  return rendezvous
 
 def plot__delay_vs_per_inconsistencies(config):
   from matplotlib.ticker import ScalarFormatter
