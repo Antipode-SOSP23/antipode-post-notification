@@ -7,7 +7,7 @@ Description
 1. Docker
 2. Python 3 
 3. Install requiremnts `pip3 install -r requirements.txt`
-4. Install AWS cli tools `aws`
+4. Install AWS cli tools `aws` (recommended version: 2)
 5. Configure your local authentication profile `aws configure`
 6. Copy your credentials to your home path `cp ~/.aws/credentials .`
 7. Config aws according to instruction below.
@@ -74,7 +74,7 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - ap: 52.0.0.0/16
     - *MAIN CONCERN*: Amazon MQ peering connection WILL NOT WORK ON OVERLAPPING CIDR BLOCKS ACROSS REGIONS. Hence choose a unique one for each region VPC
 2. After creating select the create vpc, click on ACTIONS, go to 'Edit VPC settings' and enable DNS hostnames
-3. Create two subnets, one for each Availability Zone ('a' and 'b'):
+3. Create two subnets, one for each Availability Zone ('a' and 'b'). For example:
     - eu: 50.0.0.0/20, 50.0.16.0/20
     - us: 51.0.0.0/20, 51.0.16.0/20
     - ap: 52.0.0.0/20, 52.0.16.0/20
@@ -87,9 +87,9 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - After creating go to 'Actions' and attach it to the VPC
 6. Go to Route Tables and select the one created (check the matching vpc id)
     - Go to Edit Routes and add an entry for 0.0.0.0/0 with target to the created internet gateway - select Internet Gateway and the id will appear
-7. Go to Endpoints and create an entrypoint for AWS Services needed. Make sure you select the correct VPC and Subnet:
-    - Writer region (eu-central-1): SNS, Elasticache (Redis)
-    - Reader region (us-east-1, ap-southeast-1): SQS, Elasticache (Redis)
+7. Go to Endpoints and create an entrypoint for AWS Services needed. Make sure you select the correct VPC, Subnet for the 'a' AZ and SG:
+    - Writer region (eu-central-1): SNS
+    - Reader region (us-east-1, ap-southeast-1): SQS
 
 
 #### Aurora Mysql Global Cluster
@@ -102,13 +102,13 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 2. Go to RDS dashboard and click on "Create Database"
 3. Select "Standard Create"
     - Engine type: Amazon Aurora with MySQL compatibility
-    - Select a version that supports "Global Database" feature and Provisioned with Single Master (e.g. 5.7.mysql_aurora.2.07.1)
+    - Select a version that supports "Global Database" feature and Provisioned with Single Master (e.g. Aurora MySQL 5.7, 2.11.2)
     - Select PRODUCTION template
     - DB cluster identifier: 'antipode-lambda-eu'
     - Credentials:
         - Master Username: 'antipode'
         - Master Password: 'antipode'
-    - Select lowest memory optimized machine (e.g. db.r3.large)
+    - Select lowest memory optimized machine (e.g. db.r4.large)
         - Tick "Include previous generations" for older and cheaper instances
     - Do not create Multi-AZ deployment
     - Choose default VPC
@@ -144,9 +144,9 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
     - Disable Auto minor version upgrade
 
 6. When everything is created, it is run `./antipode_lambda clean` that will automatically create MySQL tables
-7. To provide the endpoints in the connection info file, check the database of each zone:
-    - primary zone: writer instance endpoint
-    - secondary zone: reader instance endpoint
+7. To provide the endpoints in the connection info file, check the cluster of each zone:
+    - Primary zone: writer instance endpoint
+    - Secondary zone: reader instance endpoint
 
 ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 
@@ -166,7 +166,8 @@ ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-
     - On Destination click 'Browse S3' and find the bucket named: antipode-lambda-posts-<secondary region>
     - Use the 'antipode-lambda-s3-admin' IAM role
         - This is a rule that gives S3 admin access to operations needed
-    - When created it is not necessary to choose to replicate existing objects
+    - Do not select RTC
+    - When created don't choose 'replicate existing objects'
 
 NOTE: we should also change the replication priority for each deployment (input on code and wait for changes in dashboard?)
 
@@ -180,6 +181,7 @@ NOTE: we should also change the replication priority for each deployment (input 
         - Go to Global Tables
         - Create replica to the desired region
         - Double check in secondary region if tables got created
+3. For the notifications tables in the secondary regions, go to Export and Streams and obtain the stream ARN to be configured in the connection info file
 
 #### ELASTICACHE (Redis)
 1. Go to Global Datastores and create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone). The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
@@ -194,8 +196,10 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Select the default SG for the choosed VPC
     - Disable backups
 
-2. Make sure the subnet in the connection info file is the one that the reader instance is using??
+2. Make sure the subnet in the connection info file is the one that the reader instance is using
 
+3. Provide the endpoints in the connection info file:
+    - Go to the cluster of each zone and get the 'Primary endpoint' without port
 
 **WARN/BUG**: you might have to create an EC2 instance on the zone and perform an initial request to "unlock" the zone for EC
 
@@ -254,9 +258,9 @@ NOTE: we should also change the replication priority for each deployment (input 
     ```
 
 5. Go the broker again and change the REVISION of the configuration file and do APPLY IMMEDIATLY
-6. In your local machine, create a consumer on a secondary region to the primary region (change url):
+6. In your local machine test the queue by creating a consumer on a secondary region to the primary region (change url):
     ```
-    activemq consumer --brokerUrl "ssl://b-20f3cf89-7725-44b0-946b-19e84c03b81e-1.mq.ap-southeast-1.amazonaws.com:61617" \
+    activemq consumer --brokerUrl "ssl://b-20f3cf89-7725-44b0-946b-19e84c03b81e-1.mq.us-east-1.amazonaws.com:61617" \
                     --user antipode \
                     --password antipode1antipode \
                     --destination queue://antipode-notifications
@@ -275,9 +279,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 
     - Go the the dashboard of the created broker in AWS (ActiveMQ Web Console -> Manage ActiveMQ Brocker -> Queues) and you should see 10 messages enqueued and dequeued
 
-7. Remove the consumer previously created
-
-8. Create a secret for MQ lambda access on the primary region:
+7. In your local machine create a secret for MQ lambda access on the primary region:
     `aws secretsmanager create-secret --region us-east-1 --name antipode-mq --secret-string '{"username": "antipode", "password": "antipode1antipode"}' `
     - After created edit the secret and replicate to secondary regions if needed (ap-southeast)
 
@@ -287,16 +289,33 @@ NOTE: we should also change the replication priority for each deployment (input 
 Build Docker image
 > docker build -t antipode-lambda .
 
-For instance, for a post-storage backend with dynome and notification storage with sns in EU and US do the following:
+For instance, for a post-storage backend with mysql and notification storage with sns in EU and US do the following:
 
-1. You start by building the setup: `./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us`
+1. You start by building the setup: `./antipode_lambda build --post-storage mysql --notification-storage sns --writer eu --reader us`
 If you have antipode add `-ant` to your options
+To use the artificial delay before publishing the notification add `--delay <time>` to your options
 
-3. Then you run a certain number of requests: `./antipode_lambda run -r 5000`
+For the full results obtained in the paper, execute the combinations using the available post and notification storages:
 
-4. Then you gather results with an optional tag: `./antipode_lambda gather -t debug`
+| Post-Storage | Notification-Storage |
+| :----------: | :------------------: |
+| mysql        | sns                  |
+| dynamo       | mq                   |
+| s3           | dynamo               |
+| cache        |                      |
 
-5. Finally you clean your experiment in a strong way to remove deployed lambda (or without the 'strong' flag to just clean storages) `./antipode_lambda clean --strong`
+For the results of percentage of inconsistencies obtained in the paper, we used the following delay:
+
+- cache-sns: 100 -> 1500 (increments of 100)
+- dynamo-sns: 100, 200, 300, 400, 500 -> 3000 (increments of 250)
+- mysql-sns: 100 -> 1500 (increments of 100)
+- s3-sns: 500, 1000, 10k -> 50k (increments of 5k)
+
+1. Then you run a certain number of requests: `./antipode_lambda run -r 1000`
+
+2. Then you gather results with an optional tag: `./antipode_lambda gather -t debug`
+
+3. Finally you clean your experiment in a strong way to remove deployed lambda (or without the 'strong' flag to just clean storages if you want to run it again) `./antipode_lambda clean --strong`
 
 As an alternative method, you can run our maestrina script (all regions, all combinations): `./maestrina`
 
@@ -305,13 +324,13 @@ As an alternative method, you can run our maestrina script (all regions, all com
 
 At the end, you can build plots for consistency window and delay vs. inconsistency.
 
-Copy the sample.yml in plots/configs, renamed it and configure according to your gather traces.
+Copy the `sample.yml` in plots/configs, renamed it and configure according to your gather traces.
 
 ## Consistency Window
 
 In your new config file, provide the gather paths in `consistency_window` for each post and notification storages directory.
 
-Note that the antipode trace needs to be listed before the original, as exemplified.
+Note that the antipode trace needs to be listed before the original, as exemplified in the sample file
 
 Build the plot:
 
@@ -323,4 +342,4 @@ In your new config file, provide the gather paths in `delay_vs_per_inconsistenci
 
 Change the combinations as needed and build the plot:
 
-    ./plot plots/configs/antipode.yml --plots delay_vs_per_inconsistencies
+    ./plot plots/configs/sample.yml --plots delay_vs_per_inconsistencies
