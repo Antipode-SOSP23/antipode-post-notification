@@ -18,7 +18,7 @@ import yaml
 #--------------
 # PLOTS
 #--------------
-def plot__visibility_latency_overhead(config):
+def plot__consistency_window(config):
   # Apply the default theme
   sns.set_theme(style='ticks')
   plt.rcParams["figure.figsize"] = [6,2.9]
@@ -48,7 +48,7 @@ def plot__visibility_latency_overhead(config):
     run_type = 'Antipode' if 'antipode' in traces_filepath.parts[-2] else 'Original'
 
     df = pd.read_csv(traces_filepath,sep=';',index_col=0)
-    data[post_storage][run_type] = round(df['visibility_latency_ms'].mean())
+    data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
 
   data = list(data.values())
 
@@ -83,7 +83,7 @@ def plot__visibility_latency_overhead(config):
 
   # save with a unique timestamp
   plt.tight_layout()
-  plot_filename = f"visibility_latency_overhead__{datetime.now().strftime('%Y%m%d%H%M')}"
+  plot_filename = f"consistency_window__{datetime.now().strftime('%Y%m%d%H%M')}"
   plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
 

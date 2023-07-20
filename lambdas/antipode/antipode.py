@@ -9,8 +9,7 @@ class Cscope:
     if c is None:
       self.c = {
         'id': uuid.uuid4().hex,
-        'operations': {},
-        'rendezvous_points': [],
+        'operations': {}
       }
     else:
       self.c = c
@@ -22,15 +21,7 @@ class Cscope:
 
   def close(self):
     for storage,_ in self.c['operations'].items():
-      # for simplicity all storages are rendezvoupoints
-      self.c['rendezvous_points'].append(storage)
       self.service_registry[storage].cscope_close(self)
-
-  def rendezvous_barrier(self):
-    for storage in self.c['rendezvous_points']:
-      # gets the scope stored at each rendezvous_points
-      # calls barrier on each rendezvous point
-      self.service_registry[storage].retrieve_cscope(self._id, self.service_registry).barrier()
 
   def barrier(self):
     for storage,operations in self.c['operations'].items():

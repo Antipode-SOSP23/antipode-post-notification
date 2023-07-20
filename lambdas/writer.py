@@ -14,7 +14,6 @@ import importlib
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
-ANTIPODE_RENDEZVOUS_ENABLED = bool(int(os.environ['ANTIPODE_RENDEZVOUS_ENABLED']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 def lambda_handler(event, context):
@@ -48,8 +47,6 @@ def lambda_handler(event, context):
 
   if ANTIPODE:
     cscope.append('post_storage', op)
-    if ANTIPODE_RENDEZVOUS_ENABLED:
-      cscope.close()
     event['cscope'] = cscope.to_json()
 
   if DELAY_MS > 0:
