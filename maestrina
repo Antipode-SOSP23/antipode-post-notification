@@ -7,24 +7,47 @@ import time
 REQUESTS = 1000
 #--------------
 COMBINATIONS = {
-  # (writer_region , reader_region, post_storage, notification_storage) : [ delay_0, ... delay_n]
-  # e.g. ('eu', 'us', 'mysql',    'sns') : [ 1100, 1200, 1300, 1400, 1500 ]
+  # (antipode?, writer_region , reader_region, post_storage, notification_storage) : [ delay_0, ... delay_n]
+  # e.g. ('eu', 'us', 'mysql', 'sns') : [ 1100, 1200, 1300, 1400, 1500 ]
+
+  # for baseline inconsistencies
+  (False, 'eu', 'us', 'cache', 'sns') : [ 0 ],
+  (False, 'eu', 'us', 'dynamo', 'sns') : [ 0 ],
+  (False, 'eu', 'us', 'mysql', 'sns') : [ 0 ],
+  (False, 'eu', 'us', 's3', 'sns') : [ 0 ],
+  
+  # for delay
+  (False, 'eu', 'us', 'cache', 'sns') : [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500 ],
+  (False, 'eu', 'us', 'dynamo', 'sns') : [ 100, 200, 300, 400, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000 ],
+  (False, 'eu', 'us', 'mysql', 'sns') : [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500 ],
+  (False, 'eu', 'us', 's3', 'sns') : [ 500, 1000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000 ],
+
+  # for antipode vs baseline plots
+  (True, 'eu', 'us', 'cache', 'sns') : [ 0 ],
+  (True, 'eu', 'us', 'dynamo', 'sns') : [ 0 ],
+  (True, 'eu', 'us', 'mysql', 'sns') : [ 0 ],
+  (True, 'eu', 'us', 's3', 'sns') : [ 0 ]
 }
 
 antipode_lambda = local["./antipode_lambda"]
-for (writer_region, reader_region, post_storage, notification_storage),delays in COMBINATIONS.items():
+for (antipode, writer_region, reader_region, post_storage, notification_storage),delays in COMBINATIONS.items():
   print('[INFO] New deployment starting:')
   print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
-  print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}\n")
+  print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}")
+  print(f"\t > antipode: {antipode}\n")
 
   for delay in delays:
-    antipode_lambda['build',
-        '--post-storage', post_storage,
-        '--notification-storage', notification_storage,
-        '--writer', writer_region,
-        '--reader', reader_region,
-        '--delay', delay,
-      ] & FG
+    build_args = ['build',
+      '--post-storage', post_storage,
+      '--notification-storage', notification_storage,
+      '--writer', writer_region,
+      '--reader', reader_region,
+      '--delay', delay,
+    ]
+    if antipode:
+      build_args.append('-ant')
+    
+    antipode_lambda[build_args] & FG
 
     # preemptive clean just to make sure everything is indeed cleaned
     antipode_lambda['clean'] & FG
@@ -34,10 +57,8 @@ for (writer_region, reader_region, post_storage, notification_storage),delays in
     antipode_lambda['run',
         '--requests', REQUESTS,
       ] & FG
-
-    antipode_lambda['gather',
-        '-t', f"{writer_region}-{reader_region}__{REQUESTS}__delay-{delay}ms",
-      ] & FG
+    
+    antipode_lambda['gather'] & FG
 
   antipode_lambda['clean', '--strong'] & FG
   print('\n[INFO] Done!')

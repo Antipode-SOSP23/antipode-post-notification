@@ -12,7 +12,7 @@ delay_vs_per_inconsistencies:
   reader_region: 'us'
   num_requests: 1000
 
-visibility_latency_overhead:
+consistency_window:
   gather_paths:
-    - 'cache-sns/eu-us__1000-20210912134647'
     - 'cache-sns/eu-us__antipode__1000-20210913103954'
+    - 'cache-sns/eu-us__1000-20210912134647'
