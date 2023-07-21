@@ -66,29 +66,29 @@ For each resource configuration, don't forget to set up the correct endpoints in
 
 #### S3
 - Go to S3 and create one bucket for each zone. You will probably need to use a different/unique name (e.g. with some suffix). Just make sure you change the endpoints in connection_info.yaml (lambda -> s3_buckets).
-  - antipode-lambda-<region_name>
+  - `antipode-lambda-<region_name>`
   - leave everything as default
 
 After configuring each of the following datastores, don't forget to set up the endpoints in datastores of connection_info.yaml.
 
 #### SQS EVAL QUEUE
-1. Go to each reader region (us-east-1, ap-southeast-1) zone and to the AWS SQS dashboard
+1. Go to each reader region  (`us-east-1`, `ap-southeast-1`) zone and to the AWS SQS dashboard
 2. Create queue with the following parameters:
     - Standard type
-    - name: antipode-lambda-eval
+    - Name: `antipode-lambda-eval`
 
 #### VPC
 As a tip use the same name for all objects, its easier to track. We use 'antipode-mq'
 1. Create a VPC with a unique IPv4 CIDR block, distinct from the ones used in other regions, as exemplified in the connections info file:
-    - eu: 50.0.0.0/16
-    - us: 51.0.0.0/16
-    - ap: 52.0.0.0/16
+    - eu: `50.0.0.0/16`
+    - us: `51.0.0.0/16`
+    - ap: `52.0.0.0/16`
     - *MAIN CONCERN*: Amazon MQ peering connection WILL NOT WORK ON OVERLAPPING CIDR BLOCKS ACROSS REGIONS. Hence choose a unique one for each region VPC
 2. After creating select the create vpc, click on ACTIONS, go to 'Edit VPC settings' and enable DNS hostnames
 3. Create two subnets, one for each Availability Zone ('a' and 'b'). For example:
-    - eu: 50.0.0.0/20, 50.0.16.0/20
-    - us: 51.0.0.0/20, 51.0.16.0/20
-    - ap: 52.0.0.0/20, 52.0.16.0/20
+    - eu: `50.0.0.0/20`, `50.0.16.0/20`
+    - us: `51.0.0.0/20`, `51.0.16.0/20`
+    - ap: `52.0.0.0/20`, `52.0.16.0/20`
     - *MAIN CONCERN*: Amazon ElastiCache (redis) requires an additional subnet with different AZ for the additional replica.
     - *IMPORTANT REMINDER*: the subnet id's used in connections info file correspond to the first one for each zone
 4. Go to Security Groups and select the default one for the created vpc.
@@ -99,8 +99,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 6. Go to Route Tables and select the one created (check the matching vpc id)
     - Go to Edit Routes and add an entry for 0.0.0.0/0 with target to the created internet gateway - select Internet Gateway and the id will appear
 7. Go to Endpoints and create an entrypoint for AWS Services needed. Make sure you select the correct VPC, Subnet for the 'a' AZ and SG:
-    - Reader (eu-central-1): SQS
-    - Writer (us-east-1, ap-southeast-1): SNS, Dynamo (Gateway)
+    - Reader (`eu-central-1`): SQS
+    - Writer (`us-east-1`, `ap-southeast-1`): SNS, Dynamo (Gateway)
 
 #### Aurora Mysql Global Cluster
 - In each of the zones first create a Parameter Group (e.g. aurora-mysql5.7)
@@ -108,7 +108,7 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 2. Although you can let the default parameters stay, later you might want to change max_connections
 
 - Now we setup the cluster
-1. Go to eu-central-1 zone
+1. Go to `eu-central-1` zone
 2. Go to RDS dashboard and click on "Create Database"
 3. Select "Standard Create"
     - Engine type: Amazon Aurora with MySQL compatibility
@@ -135,8 +135,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
         - Enable delete protection
 4. Wait for all the instances to be created
 5. In 'Databases', select the top level "Global Database". Click on Actions and "Add AWS region". You will get to a "Add Region" panel where you can setup the new replica:
-    - Global database identifier: antipode-lambda
-    - Secondary region: <region_name>
+    - Global database identifier: `antipode-lambda`
+    - Secondary region: `<region_name>`
     - Select lowest memory optimized machine
     - Do not create multi-az deployment
     - Select the default VPC
@@ -147,8 +147,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
         - Rule to allow itself - the security group - in inbound and outbound
     - Select the AZ terminated in a (?? needed)
     - Do not enable "read replica write forwarding"
-    - DB instance identifier: antipode-lambda-<region name>-instance
-    - DB cluster identifier: antipode-lambda-<region name>
+    - DB instance identifier: `antipode-lambda-<region name>-instance`
+    - DB cluster identifier: `antipode-lambda-<region name>`
     - Disable Performance Insights
     - Disable Monitoring
     - Disable Auto minor version upgrade
@@ -161,19 +161,19 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 
 #### SNS
-1. Go to eu-central-1 zone and to the AWS SNS dashboard
+1. Go to `eu-central-1` zone and to the AWS SNS dashboard
 2. Go to Topics and create a new one with the following parameters:
     - Standard type
-    - name: antipode-lambda-notifications
+    - name: `antipode-lambda-notifications`
 
 #### S3
 1. Go AWS dashboard and create buckets within all zones. Note that names are unique and you will probably need to use a different one
-    - Name: antipode-lambda-posts-<region>
+    - Name: `antipode-lambda-posts-<region>` 
     - Enabled versioning
 2. Go the bucket in the primary region, go to the Managemen tab and create replication from the bucket in that region other buckets
-    - Name: to-reader-<secondary region>
+    - Name: `to-reader-<secondary region>`
     - Rule scope: apply to all objects
-    - On Destination click 'Browse S3' and find the bucket named: antipode-lambda-posts-<secondary region>
+    - On Destination click 'Browse S3' and find the bucket named: `antipode-lambda-posts-<secondary region>`
     - Use the 'antipode-lambda-s3-admin' IAM role
         - This is a rule that gives S3 admin access to operations needed
     - Do not select RTC
@@ -195,12 +195,12 @@ NOTE: we should also change the replication priority for each deployment (input 
 
 #### ELASTICACHE (Redis)
 1. Go to Global Datastores and create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone). The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
-    - Name: antipode-lambda-<region>
+    - Name: `antipode-lambda-<region>`
     - Port: 6379 (or the one you define in connection_info.yaml)
-    - Node type: cache.r5.large
+    - Node type: `cache.r5.large`
     - Num replicas: 1
     - Create a new Subnet group:
-        - Name: antipode-lambda-<region>
+        - Name: `antipode-lambda-<region>`
         - Select previously created VPC and Subnet groups
         - Select the AZ preference to the only AZ that should be there
     - Select the default SG for the choosed VPC
@@ -218,16 +218,16 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Check the following material for more details:
         - https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
         - https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
-    - **HUGE WARNING**: WILL NOT WORK WITH VPCs WITH OVERLAPING CIDRS
+      **HUGE WARNING**: WILL NOT WORK WITH VPCs WITH OVERLAPING CIDRS
 
     - Go to the the secondary zone and create a new Peering Connection
-        - Name: antipode-mq-<primary>-<secondary> (e.g. antipode-mq-eu-us)
+        - Name: `antipode-mq-<primary>-<secondary>` (e.g. antipode-mq-eu-us)
             - Select the previously created VPC
             - The select the primary zone and paste the previously created VPC id
         - Go to the Peering Connections on the primary zone and accept the pending request (you might want to change the name as well)
         - On both zones go to the Routing Table. We will match the pair the CIDR blocks
-            - On zone REGION-A add the entry: <REGION-B CIDR block> -> pcx-id (peering connection)
-            - On zone REGION-B add the entry: <REGION-A CIDR block> -> pcx-id (peering connection)
+            - On zone `REGION-A` add the entry: `<REGION-B CIDR block> -> pcx-id (peering connection)`
+            - On zone `REGION-B` add the entry: `<REGION-A CIDR block> -> pcx-id (peering connection)`
           At the end of the whole setup, primary should have a configuration similar to this one:
           ```
           50.0.0.0/16	local       (self)
@@ -249,13 +249,13 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Engine: Apache ActiveMQ
     - Single-instance broker
     - Durability optimized
-    - Broker name: antipode-lambda-notifications-<region>
-    - Username: antipode
-    - Password: antipode1antipode
+    - Broker name: `antipode-lambda-notifications-<region>` 
+    - Username: `antipode`
+    - Password: `antipode1antipode`
     - Broker engine: 5.16.2
     - Select to create a default configuration
-    - Select pre-created VPC config: antipode-mq
-    - Select pre-created Security group: antipode-mq
+    - Select pre-created VPC config: `antipode-mq`
+    - Select pre-created Security group: `antipode-mq`
     - Disable maintenance
 3. Double check that you CAN access the public broker management dashboard
 4. Go the the PRIMARY (writer) zone and edit the created configuration by uncommeting the networkConnectors blocks and replace with this (change the uris as needed):
@@ -356,6 +356,7 @@ Change the combinations as needed and build the plot:
 
 
 ## Paper References
-João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues 
-Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications 
-To appear. [Download](PDF)
+João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues  
+Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications  
+To appear.  
+[Download](PDF)
