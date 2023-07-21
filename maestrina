@@ -60,9 +60,5 @@ for (antipode, writer_region, reader_region, post_storage, notification_storage)
     
     antipode_lambda['gather'] & FG
 
-    #antipode_lambda['gather',
-    #    '-t', f"{writer_region}-{reader_region}__{REQUESTS}__delay-{delay}ms",
-    #  ] & FG
-
   antipode_lambda['clean', '--strong'] & FG
   print('\n[INFO] Done!')

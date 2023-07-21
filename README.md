@@ -1,6 +1,21 @@
 # Antipode @ Post-Notification AWS Lambda
 
-Description
+In this repo you will find found how Antipode fixes the inconsistency found on our Post-Notification microbenchmark.
+
+The Post-Notification application was born from a real problem in [Facebook’s infrastructure]((https://www.usenix.org/conference/hotos15/workshop-program/presentation/ajoux)), but simplified in the form of a microbenchmark that run on AWS Lambda environment, depicted in the following picture.
+
+![Post-Notification](post-notification.jpeg)
+
+In this application, users can upload posts and followers receive notifications.
+Internally, the application comprises two key service, each responsible for a different task in the end-to-end request flow, namely: a *Writer* service (comprised of `post-upload` and `post-storage` services) that works as a proxy for the clients and is responsible for storing and processing the contents of posts; and a *Reader* service (comprised of `notifier` and `follower-notify` services) in charge of disseminating notification events which notifies followers of new posts. 
+Cross-service inconsistencies can occur in this application: followers in Region B can be notified of posts that do not yet exist in that region. 
+
+In our implementation, we each service corresponds to a Lambda functions, which access off-the-shelf datastores. Each external client request spawns a Writer call, which writes the new post to post-storage, and then creates a new notification in the notifier. 
+Meanwhile, a new Reader is spawned when a new notifier replication event is received. 
+For this scenario, we consider that a cross-service inconsistency occurs when reading a post outputs object not found.
+For the off-the-shelf datastores we used combinations MySQL, DynamoDB, S3, and Redis for storing posts; and SNS, AMQ, and DynamoDB for notification events.
+
+Antipode solves this violation by placing a barrier right after the Reader receives the notification replication event.
 
 
 ## Prerequisites
@@ -13,7 +28,7 @@ Description
 7. Config aws according to instruction below.
 8. *WARNING* In AWS, go to Service Quotas, AWS Lambda and make sure the applie quota value of concurrent executions is set to 1000 in all regions listed in the following sections.
 
-## AWS Configurations
+### AWS Configurations
 
 We assume the following regions:
 - For EU we use Europe (Frankfurt) datacenter and the `eu-central-1a` availability zone
@@ -22,9 +37,7 @@ We assume the following regions:
 
 For each resource configuration, don't forget to set up the correct endpoints in the corresponding sections (lambda and datastores) in connection_info.yaml.
 
-### Global Resources (Lambda)
-
-### IAM
+#### IAM
 
 1. Create a role named `antipode-cloudformation-admin` (name is defined at the end):
     - Trusted Entity Type: AWS Service
@@ -51,12 +64,10 @@ For each resource configuration, don't forget to set up the correct endpoints in
 
 4. Add the endpoints for the first two roles at the begging of connections_info.yaml.
 
-### S3
+#### S3
 - Go to S3 and create one bucket for each zone. You will probably need to use a different/unique name (e.g. with some suffix). Just make sure you change the endpoints in connection_info.yaml (lambda -> s3_buckets).
   - antipode-lambda-<region_name>
   - leave everything as default
-
-### Datastores
 
 After configuring each of the following datastores, don't forget to set up the endpoints in datastores of connection_info.yaml.
 
@@ -88,9 +99,8 @@ As a tip use the same name for all objects, its easier to track. We use 'antipod
 6. Go to Route Tables and select the one created (check the matching vpc id)
     - Go to Edit Routes and add an entry for 0.0.0.0/0 with target to the created internet gateway - select Internet Gateway and the id will appear
 7. Go to Endpoints and create an entrypoint for AWS Services needed. Make sure you select the correct VPC, Subnet for the 'a' AZ and SG:
-    - Writer region (eu-central-1): SNS
-    - Reader region (us-east-1, ap-southeast-1): SQS
-
+    - Reader (eu-central-1): SQS
+    - Writer (us-east-1, ap-southeast-1): SNS, Dynamo (Gateway)
 
 #### Aurora Mysql Global Cluster
 - In each of the zones first create a Parameter Group (e.g. aurora-mysql5.7)
@@ -326,7 +336,7 @@ At the end, you can build plots for consistency window and delay vs. inconsisten
 
 Copy the `sample.yml` in plots/configs, renamed it and configure according to your gather traces.
 
-## Consistency Window
+#### Consistency Window
 
 In your new config file, provide the gather paths in `consistency_window` for each post and notification storages directory.
 
@@ -336,10 +346,16 @@ Build the plot:
 
     ./plot plots/configs/sample.yml --plots consistency_window
 
-## Delay vs Inconsistencies Percentage
+#### Delay vs Inconsistencies Percentage
 
 In your new config file, provide the gather paths in `delay_vs_per_inconsistencies` for each post and notification storages directory.
 
 Change the combinations as needed and build the plot:
 
     ./plot plots/configs/sample.yml --plots delay_vs_per_inconsistencies
+
+
+## Paper References
+João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues 
+Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications 
+To appear. [Download](PDF)
