@@ -4,6 +4,7 @@ from datetime import datetime
 import importlib
 import boto3
 from botocore.client import Config
+from objsize import get_deep_size
 
 #--------------
 # AWS SAM Deployment details
@@ -68,6 +69,8 @@ def lambda_handler(event, context):
   evaluation['consistent_read'] = int(read_post(event['key'], evaluation))
   # keep time of read - visibility latency
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
+  # measure notification event size in original vs. antipode
+  evaluation['notification_size_bytes'] = get_deep_size(event)
 
   # write evaluation to SQS queue
   # due to bug with VPC and SQS we have to be explicit regarding the endpoint url
