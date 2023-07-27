@@ -783,6 +783,7 @@ def gather(args):
             'post_read_at': float(item['post_read_at']),
             'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
+            'notification_size_bytes': int(item['notification_size_bytes']),
             # 'post_written_at': int(item['post_written_at']),
           }
           if antipode_enabled:
@@ -821,6 +822,12 @@ def gather(args):
     del r['reply_at']
     del r['post_read_at']
 
+  # total notification event size
+  total_notification_size_bytes = 0
+  for _, r in results.items():
+    total_notification_size_bytes += r['notification_size_bytes']
+    del r['notification_size_bytes']
+
   print("[INFO] Parsing evaluation ...", end='')
   df = pd.DataFrame(results.values())
 
@@ -839,11 +846,13 @@ def gather(args):
   # from sent_at@i=0 to sent_at@i=0
   time_spent_by_client = last_client_replied - first_client_sent
 
+
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
       'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
       '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
       'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
+      'TOTAL NOTIFICATION SIZE (BYTES)': total_notification_size_bytes,
     }
 
   # save the pandas describe
