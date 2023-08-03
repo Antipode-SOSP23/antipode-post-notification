@@ -824,10 +824,19 @@ def gather(args):
     del r['post_read_at']
 
   # total notification event size
-  total_notification_size_bytes = 0
+  total_notification_storage_size_bytes = 0
   for _, r in results.items():
-    total_notification_size_bytes += r['notification_size_bytes']
+    total_notification_storage_size_bytes += r['notification_size_bytes']
     del r['notification_size_bytes']
+
+  if post_storage == 'dynamo':
+    # we hard code each item size since Dynamo does not have a way to
+    # get the table size (only if you wait 6h+)
+    # Hence, we used this calculator in an item with and without antipode
+    # https://zaccharles.github.io/dynamodb-calculator/
+    # and we got to these values
+    single_item_size = r['post_size_bytes'] = 350062 if antipode_enabled else 350014
+    total_post_storage_size_bytes = single_item_size * len(eval_values)
 
   print("[INFO] Parsing evaluation ...", end='')
   df = pd.DataFrame(results.values())
@@ -853,7 +862,8 @@ def gather(args):
       'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
       '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
       'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
-      'TOTAL NOTIFICATION SIZE (BYTES)': total_notification_size_bytes,
+      'TOTAL NOTIFICATION SIZE (BYTES)': total_notification_storage_size_bytes,
+      'TOTAL STORAGE SIZE (BYTES)': total_post_storage_size_bytes,
     }
 
   # save the pandas describe
