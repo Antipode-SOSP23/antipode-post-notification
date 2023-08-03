@@ -32,7 +32,7 @@ def wait(operations):
 def read_post(k, c):
   post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
   # read key of post
-  r = post_table.get_item(Key={'key': k, 'context_id': c._id}, AttributesToGet=['k'])
+  r = post_table.get_item(Key={'key': k, 'context_id': c._id}, AttributesToGet=['key'])
   return ('Item' in r)
 
 ##
