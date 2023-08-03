@@ -19,7 +19,7 @@ def write_post(i,k):
     )
   return (_bucket('reader'), str(k))
 
-def read_post(k, evaluation):
+def read_post(k):
   s3_client = boto3.client('s3')
   try:
     s3_client.head_object(Bucket=_bucket('reader'), Key=str(k))

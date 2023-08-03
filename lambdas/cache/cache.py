@@ -24,7 +24,7 @@ def write_post(i,k):
   _conn('writer').set(k, json.dumps(post))
   return op
 
-def read_post(k, evaluation):
+def read_post(k):
   r = _conn('reader')
   return bool(r.exists(k))
 

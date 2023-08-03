@@ -41,7 +41,7 @@ def write_post(i,k):
     print(f"[ERROR] MySQL exception writing post: {e}")
     exit(-1)
 
-def read_post(k, evaluation):
+def read_post(k):
   # connect to mysql
   mysql_conn = _mysql_connection('reader')
 

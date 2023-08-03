@@ -1,9 +1,7 @@
 import os
 import boto3
-import antipode_core as ant
 
 DYNAMO_ANTIPODE_TABLE = os.environ['DYNAMO_ANTIPODE_TABLE']
-
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
@@ -20,8 +18,7 @@ def write_post(k, c):
       'context_id': str(c._id),
       'b': os.urandom(350000),
     })
-  ant.AntipodeCore.append_operation(c, 'post-storage', op)
-  ant.AntipodeCore.barrier(c)
+  antipode_core.append_operation(c, 'post-storage', op)
   return op
 
 def wait(operations):
@@ -37,3 +34,7 @@ def read_post(k, c):
   # read key of post
   r = post_table.get_item(Key={'key': k, 'context_id': c._id}, AttributesToGet=['k'])
   return ('Item' in r)
+
+##
+# Keep this import at the end so all methods are defined when Antipode's wait register is called
+import antipode_core

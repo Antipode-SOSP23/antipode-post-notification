@@ -5,6 +5,7 @@ import importlib
 import boto3
 from botocore.client import Config
 from objsize import get_deep_size
+from context import Context
 
 #--------------
 # AWS SAM Deployment details
@@ -12,7 +13,7 @@ from objsize import get_deep_size
 # Lambda payload example: (do not forget to invoke the writer first)
 #   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197 }
 # or with antipode:
-#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197, "cscope": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
+#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197, "context": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
 #--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']
@@ -23,8 +24,11 @@ DELAY_MS = int(os.environ['DELAY_MS'])
 def lambda_handler(event, context):
   # dynamically load
   parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
-  read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
-  antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
+  if ANTIPODE:
+    read_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'read_post')
+    import antipode_core
+  else:
+    read_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'read_post')
 
   received_at = datetime.utcnow().timestamp()
 
@@ -49,26 +53,21 @@ def lambda_handler(event, context):
     'antipode_spent_ms': None,
   }
 
+  # init context
+  context = Context.from_json(event['context'])
+
   if ANTIPODE:
     # eval antipode
     antipode_start_ts = datetime.utcnow().timestamp()
-
-    # import antipode lib
-    import antipode as ant
-    # init service registry
-    SERVICE_REGISTRY = {
-      'post_storage': antipode_shim('post_storage', 'reader')
-    }
-    # deserialize cscope
-    cscope = ant.Cscope.from_json(SERVICE_REGISTRY, event['cscope'])
-    cscope.barrier()
-
+    antipode_core.barrier(context)
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   # read post and fill evaluation
-  evaluation['consistent_read'] = int(read_post(event['key'], evaluation))
+  evaluation['consistent_read'] = int(read_post(event['key'], context))
   # keep time of read - visibility latency
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
+
+  # Add extra evaluation
   # measure notification event size in original vs. antipode
   evaluation['notification_size_bytes'] = get_deep_size(event)
 

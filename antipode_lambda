@@ -880,9 +880,10 @@ ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 #--------------
 # post_storage METHODS:
-#   - write_post(i, k) -> op
-#   - read_post(k, evaluation)
-#   - antipode_shim(id, role) -> AntipodeBridge
+#   - write_post(k) -> op
+#   - (Antipode) write_post(k,c) -> op
+#   - read_post(k)
+#   - (Antipode) read_post(k,c) -> op
 #--------------
 # notification_storage METHODS:
 #   - write_notification(event)
