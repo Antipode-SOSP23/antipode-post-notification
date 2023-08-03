@@ -9,6 +9,7 @@ RUN set -ex ;\
         groff \
         activemq \
         # some command line utils
+        less \
         tree \
         vim \
         curl \
