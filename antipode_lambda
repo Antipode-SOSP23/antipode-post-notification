@@ -141,7 +141,7 @@ def _build_service(role, args):
         Type: AWS::Serverless::Function
         Properties:
           Handler: {{ role }}.lambda_handler
-          Runtime: python3.7
+          Runtime: python3.8
           Description: 'Antipode Lambda - {{ post_storage }}<>{{ notification_storage }} - {{ role }}'
           MemorySize: 128
           Timeout: {{ lambda_timeout }}
