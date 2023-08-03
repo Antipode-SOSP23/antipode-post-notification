@@ -191,6 +191,7 @@ def _build_service(role, args):
     f.write(textwrap.dedent(template_generated).strip())
 
   # copy datastore lib files
+  shutil.copy(ROOT_PATH / 'lambdas' / 'context.py', deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / f"{role}.py", deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / args['post_storage'] / f"{args['post_storage']}.py", deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / args['notification_storage'] / f"{args['notification_storage']}.py", deploy_dir)
