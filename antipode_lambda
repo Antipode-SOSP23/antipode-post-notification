@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-from pprint import pprint
+from pprint import pprint as pp
 import os
 import sys
 import argparse
@@ -211,7 +211,7 @@ def _build_service(role, args):
 
   # copy antipode code if its enabled
   if args['antipode']:
-    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode.py', deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode_core.py', deploy_dir)
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / f"antipode_{args['post_storage']}.py", deploy_dir)
 
   # figure out deploy params
