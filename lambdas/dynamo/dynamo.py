@@ -13,7 +13,7 @@ def _conn(role):
       endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
     )
 
-def write_post(i,k):
+def write_post(k):
   post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
   op = (DYNAMO_POST_TABLE_NAME, 'k', k)
   post_table.put_item(Item={
@@ -26,11 +26,6 @@ def read_post(k, evaluation):
   post_table = _conn('reader').Table(DYNAMO_POST_TABLE_NAME)
   # read key of post
   return ('Item' in post_table.get_item(Key={'k': str(k)}, AttributesToGet=['k']))
-
-def antipode_shim(id, role):
-  import antipode_dynamo as ant # this file will get copied when deploying
-
-  return ant.AntipodeDynamo(_id=id, conn=_conn(role))
 
 def write_notification(event):
   # write notification to current AWS region

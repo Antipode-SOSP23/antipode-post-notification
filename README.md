@@ -181,17 +181,17 @@ ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-
 
 NOTE: we should also change the replication priority for each deployment (input on code and wait for changes in dashboard?)
 
-#### DYNAMO
-1. On each region create tables for posts, notifications and cscopes
-    - For name and partition key check the connection_info file
+#### DynamoDB
+1. On each region create tables for `posts`, `notifications` and `posts-antipode`
+    - For name and partition key check the `connection_info.yaml` file
     - Select everything default
-    - In table settings, select customize settings and change Read/Write capacity settings to 'On-demand'
+    - In table settings, select customize settings and change `Read/Write` capacity settings to `On-demand`
 2. After created go to dashboard on the primary region and select Tables:
-    - For the 3 tables (posts, notifications, cscopes) do the following:
-        - Go to Global Tables
+    - For the 3 tables (`posts`, `notifications`, `posts-antipode`) do the following:
+        - Go to `Global Tables`
         - Create replica to the desired region
         - Double check in secondary region if tables got created
-3. For the notifications tables in the secondary regions, go to Export and Streams and obtain the stream ARN to be configured in the connection info file
+3. For the `notifications` tables in the secondary regions, go to `Export` and `Streams` and obtain the stream ARN to be configured in the `connection_info.yaml` file
 
 #### ELASTICACHE (Redis)
 1. Go to Global Datastores and create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone). The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:

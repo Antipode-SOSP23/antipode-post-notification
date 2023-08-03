@@ -1,37 +1,39 @@
 import os
 import boto3
-import antipode as ant
+import antipode_core as ant
 
 DYNAMO_ANTIPODE_TABLE = os.environ['DYNAMO_ANTIPODE_TABLE']
 
-class AntipodeDynamo:
-  def __init__(self, _id, conn):
-    self._id = _id
-    self.conn = conn
-    self.antipode_table = self.conn.Table(DYNAMO_ANTIPODE_TABLE)
 
-  def _id(self):
-    return self._id
+def _conn(role):
+  region = os.environ[f"{role.upper()}_REGION"]
+  return boto3.resource('dynamodb',
+      region_name=region,
+      endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
+    )
 
-  def cscope_close(self, c):
-    # write post
-    self.antipode_table.put_item(Item={
-        # TODO: add FULL cscope
-        'cid': str(c._id),
-        'json': c.to_json(),
-      })
+def write_post(k, c):
+  post_table = _conn('writer').Table(DYNAMO_ANTIPODE_TABLE)
+  op = (str(k), str(c._id))
+  post_table.put_item(Item={
+      'key': str(k),
+      'context_id': str(c._id),
+      'b': os.urandom(350000),
+    })
+  ant.AntipodeCore.append_operation(c, 'post-storage', op)
+  ant.AntipodeCore.barrier(c)
+  return op
 
-  def retrieve_cscope(self, cscope_id, service_registry):
-    # read cscope_id
+def wait(operations):
+  post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
+  # read all keys in context
+  for op in operations:
     while True:
-      item = self.antipode_table.get_item(Key={'cid': str(cscope_id)})
-      if 'Item' in item:
-        return ant.Cscope.from_json(service_registry, item['Item']['json'])
+      if 'Item' in post_table.get_item(Key={'key': op[0], 'context_id': op[1]}, AttributesToGet=['key']):
+        break
 
-  def cscope_barrier(self, operations):
-    # read post operations
-    for op in operations:
-      op_table = self.conn.Table(op[0])
-      while True:
-        if 'Item' in op_table.get_item(Key={op[1]: str(op[2])}, AttributesToGet=[op[1]]):
-          break
+def read_post(k, c):
+  post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
+  # read key of post
+  r = post_table.get_item(Key={'key': k, 'context_id': c._id}, AttributesToGet=['k'])
+  return ('Item' in r)

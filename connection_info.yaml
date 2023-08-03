@@ -46,7 +46,7 @@ datastores:
     # common
     post_table_name: blobs # PK: k
     notifications_table_name: keyvalue # PK: k
-    antipode_table: cscopes # PK: cid
+    antipode_table: keyvalue-antipode # PK: key // SK: context_id
     # reader us
     notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:641424397462:table/keyvalue/stream/2020-06-15T14:43:13.249
     # reader sg
