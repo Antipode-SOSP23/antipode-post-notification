@@ -108,6 +108,7 @@ def _force_docker():
   subprocess.call(args)
   exit()
 
+
 #--------------
 # BUILD
 #--------------
@@ -432,6 +433,7 @@ def clean__mysql():
       autocommit=True
     )
   with mysql_conn.cursor() as cursor:
+    # Drop database
     try:
       sql = f"DROP DATABASE `{MYSQL_CONN['db']}`"
       cursor.execute(sql)
@@ -444,6 +446,7 @@ def clean__mysql():
         print(f"[WARN] MySQL error: {e}")
         exit(-1)
 
+    # Create database
     try:
       sql = f"CREATE DATABASE `{MYSQL_CONN['db']}`"
       cursor.execute(sql)
@@ -453,21 +456,41 @@ def clean__mysql():
       print(f"[WARN] MySQL error: {e}")
       exit(-1)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
+    # Create tables
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
+      k BIGINT NOT NULL,
+      b LONGBLOB NOT NULL,
+      PRIMARY KEY (k)
+    )"""
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['post_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['notifications_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}))"
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['notifications_table_name']}` (
+      k BIGINT NOT NULL,
+      v VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      PRIMARY KEY (k)
+    )"""
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['notifications_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['antipode_table']}` (cid VARCHAR(32), json VARCHAR(20000))"
+    # context 128bits random has around 40 chars
+    # we also add a context for faster index
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['antipode_table']}` (
+      k BIGINT NOT NULL,
+      b LONGBLOB NOT NULL,
+      c VARCHAR(50) NOT NULL,
+      PRIMARY KEY (k),
+      INDEX (c)
+    )"""
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
@@ -621,6 +644,7 @@ def clean__cache():
   if status_code != 200:
     raise Exception('Failed to clean cache storage')
   print("Done!")
+
 
 #--------------
 # RUN
@@ -932,6 +956,7 @@ LAMBDA_CLEAN_TAG = "-#CLEAN#-"
 CORE_COUNT = min(mp.cpu_count(), 8)
 NOTIFICATION_KEY_LEN = 10
 PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
+
 
 #--------------
 # CMD LINE

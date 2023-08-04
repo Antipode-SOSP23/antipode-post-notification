@@ -1,8 +1,6 @@
 # Antipode @ Post-Notification AWS Lambda
 
-In this repo you will find found how Antipode fixes the inconsistency found on our Post-Notification microbenchmark.
-
-The Post-Notification application was born from a real problem in [Facebook’s infrastructure](https://www.usenix.org/conference/hotos15/workshop-program/presentation/ajoux), but simplified in the form of a microbenchmark that runs on top of AWS Lambda, depicted in the following picture.
+In this repo you will find found how Antipode fixes the **cross-service inconsistency** described by [Facebook](https://www.usenix.org/conference/hotos15/workshop-program/presentation/ajoux), and simplified in the form of a microbenchmark that runs on top of AWS Lambda, depicted in the following picture.
 
 ![Post-Notification](post-notification.jpeg)
 
@@ -37,7 +35,7 @@ We assume the following regions:
 - For US we use US East (N. Virginia) datacenter and the `us-east-1a` availability zone
 - For AP we use Asia Pacific (Singapore) datacenter and the `ap-southeast-1a` availability zone
 
-For each resource configuration, do not forget to set up the correct endpoints in the corresponding sections (lambda and datastores) in connection_info.yaml.
+For each resource configuration, do not forget to set up the correct endpoints in the corresponding sections (lambda and datastores) in the `connection_info.yaml` file.
 
 **WARNING:** In AWS, go to Service Quotas, AWS Lambda and make sure the applie quota value of concurrent executions is set to 1000 in all regions listed in the following sections.
 
@@ -67,7 +65,7 @@ For each resource configuration, do not forget to set up the correct endpoints i
         - AmazonS3FullAccess
 4. Add the endpoints for the first two roles at the begging of connections_info.yaml.
 
-#### Evaluation Queue (SQS)
+#### Evaluation Queue (AWS SQS)
 1. Go to each reader region  (`us-east-1`, `ap-southeast-1`) zone and to the AWS SQS dashboard
 2. Create queue with the following parameters:
     - Standard type
@@ -98,63 +96,66 @@ As a tip use the same name for all objects, its easier to track. We use `antipod
     - Reader (`eu-central-1`): SQS
     - Writer (`us-east-1`, `ap-southeast-1`): SNS, Dynamo (Gateway)
 
-#### MySQL (Aurora Global Cluster)
-- In each of the zones first create a Parameter Group (e.g. aurora-mysql5.7)
-1. Go to Dashboard, click on "Parameter Groups". Create a new one
-2. Although you can let the default parameters stay, later you might want to change max_connections
+#### MySQL (AWS RDS)
+Before starting, in each of the zones where you will be deploying MySQL, go the AWS RDS dashboard:
+1. On the left side, click on `Parameter Groups`. And create a new one (e.g. `aurora-mysql5.7`)
+2. Although you can let the default parameters stay, you might want to increase max_connections
 
-- Now we setup the cluster
-1. Go to `eu-central-1` zone
-2. Go to RDS dashboard and click on `Create Database`
+Now we setup the cluster per se ([reference](ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)):
+1. Go to the writer zone `eu-central-1`
+2. Go to AWS RDS dashboard and click on `Create Database`
 3. Select `Standard Create`
     - Engine type: Amazon Aurora with MySQL compatibility
-    - Select a version that supports `Global Database` feature and Provisioned with Single Master (e.g. Aurora MySQL 5.7, 2.11.2)
-    - Select PRODUCTION template
+    - On the filters enable the `Show versions that support the global database feature` filter
+    - Select a MySQL version that supports `Global Database` (info on the right side panel), e.g. Aurora MySQL 5.7 v2.11.2
+    - Select `Production` template
     - DB cluster identifier: `antipode-lambda-eu`
-    - Credentials:
+    - For credentials you can use the following:
         - Master Username: `antipode`
         - Master Password: `antipode`
-    - Select lowest memory optimized machine (e.g. db.r4.large)
-        - Tick `Include previous generations` for older and cheaper instances
+    - Select a memory optimized machine (e.g. `db.r6.large`). You can tick `Include previous generations` for older and cheaper instances.
     - Do not create Multi-AZ deployment
-    - Choose default VPC
-    - Public access: YES
-    - Choose `allow-all` VPC group
-    - Connectivity additional configuration:
-        - Database port: 3306
-    - Disable Performance Insights
-    - Monitoring additional configuration:
-        - Disable Enhanced monitoring
-    - Additional configuration:
+    - Choose the `Default VPC`. _Warning_: do not try to change the `antipode-mq` VPC to support RDS by adding more subnets -- use a different one.
+    - Enable `Public access`
+    - Choose the existing `allow-all` VPC security group. If its not created, you should create with:
+        - ALL TRAFFIC open for all IPv4 and IPv6, in inbound and outbound
+        - Rule to allow itself - the security group - in inbound and outbound
+    - Select the AZ terminated in `a` <!-- (is it needed??) -->
+    - On `Additional configuration` make sure the database port is `3306`
+    - On `Monitoring`
+        - Disable `Performance Insights`
+        - Disable `Enhanced Monitoring` on the additional configurations
+    - On `Additional configuration`:
+        - Leave the `Initial database name` blank as we will create later
+        - Set the `DB cluster parameter group` and the `DB parameter group` with the previously created parameter group
         - Disable Encryption
-        - Disable auto minor version upgrade
-        - Enable delete protection
-4. Wait for all the instances to be created
-5. In `Databases`, select the top level `Global Database`. Click on Actions and `Add AWS region`. You will get to a "Add Region" panel where you can setup the new replica:
+        - Disable `Auto minor version upgrade`
+4. Wait for the database instances to be created
+5. In `Databases`, select the top level entry named `antipode-lambda-eu` with type `Regional cluster`. Click on Actions and `Add AWS region`. You will get to a `Add Region` panel where you can setup the new replica:
     - Global database identifier: `antipode-lambda`
-    - Secondary region: `<region_name>`
-    - Select lowest memory optimized machine
-    - Do not create multi-az deployment
-    - Select the default VPC
-        - DO NOT CHANGE antipode-mq to support RDS by adding more **subnets**
-    - Enable Public access
+    - Select secondary region, e.g. `US East (N. Virginia)` which would mean that
+    - Select the same model of machine selected in the writer zone (e.g. `db.r6.large`)
+    - Do not create Multi-AZ deployment
+    - Choose the `Default VPC`.
+    - Enable `Public access`
     - Select the `allow-all` VPC security group. If its not created, you should create with:
         - ALL TRAFFIC open for all IPv4 and IPv6, in inbound and outbound
         - Rule to allow itself - the security group - in inbound and outbound
-    - Select the AZ terminated in a (?? needed)
-    - Do not enable "read replica write forwarding"
-    - DB instance identifier: `antipode-lambda-<region name>-instance`
-    - DB cluster identifier: `antipode-lambda-<region name>`
-    - Disable Performance Insights
-    - Disable Monitoring
-    - Disable Auto minor version upgrade
+    - Select the AZ terminated in `a` <!-- (is it needed??) -->
+    - On `Additional configuration` make sure the database port is `3306`
+    - Keep `Turn on global write forwarding` disabled
+    - On `Additional configuration`:
+        - DB instance identifier, e.g. `antipode-lambda-us-instance`
+        - DB cluster identifier: `antipode-lambda-us`
+        - Disable `Performance Insights`
+        - Disable `Enhanced Monitoring`
+        - Disable `Auto minor version upgrade`
+6. When everything is created run `./antipode_lambda clean` that will automatically create MySQL tables
+7. Go to the `connection_info.yaml` file and fill out the cluster endpoints for each zone. To get the endpoints go to the RDS dashboard and on the `Databases` list select the corresponding instance. On the panel below, select the `Connectivity & security` tab and copy the value under `Endpoint`.
+    - RDS Writer instance corresponds to the `writer` instance endpoint
+    - RDS Reader instance corresponds to the `reader` instance endpoint
+8. Finally run `./antipode_lambda clean -n mysql` so we create database and tables
 
-6. When everything is created, it is run `./antipode_lambda clean` that will automatically create MySQL tables
-7. To provide the endpoints in the `connection_info.yaml` file, check the cluster of each zone:
-    - Primary zone: writer instance endpoint
-    - Secondary zone: reader instance endpoint
-
-ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
 
 #### SNS
 1. Go to `eu-central-1` zone and to the AWS SNS dashboard
@@ -352,3 +353,9 @@ João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues\
 Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications\
 To appear.\
 [Download](PDF)
+
+Phillipe Ajoux, Nathan Bronson, Sanjeev Kumar, Wyatt Lloyd, Kaushik Veeraraghavan\
+Challenges to Adopting Stronger Consistency at Scale\
+HotOS 2015.\
+[Download](https://www.usenix.org/system/files/conference/hotos15/hotos15-paper-ajoux.pdf)
+[Presentation](https://www.usenix.org/sites/default/files/conference/protected-files/hotos15_slides_ajoux.pdf)
