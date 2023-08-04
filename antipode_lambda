@@ -248,6 +248,8 @@ def _build_service(role, args):
 
   os.chdir(ROOT_PATH)
 
+#--------------
+
 def build(args):
   _force_docker()
 
@@ -376,7 +378,13 @@ def _clean_service(role):
       '--region', _get_last(f"{role}_region"),
       '--stack-name', _get_last(f"{role}_stack_name"),
   ] & FG
+  aws['cloudformation', 'wait' 'stack-delete-complete',
+      '--region', _get_last(f"{role}_region"),
+      '--stack-name', _get_last(f"{role}_stack_name"),
+  ] & FG
   print("Done!")
+
+#--------------
 
 def clean(args):
   _force_docker()
@@ -682,6 +690,8 @@ def _writer_pool_init():
   import signal
   # Ignore CTRL+C in the worker process
   signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+#--------------
 
 def run(args):
   from tqdm import tqdm
