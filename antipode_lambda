@@ -9,7 +9,7 @@ import random
 import string
 import multiprocessing as mp
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from plumbum import FG, BG
 import time
 
@@ -837,8 +837,12 @@ def gather(args):
     # and we got to these values
     single_item_size = r['post_size_bytes'] = 350062 if antipode_enabled else 350014
     total_post_storage_size_bytes = single_item_size * len(eval_values)
+  elif post_storage == 's3':
+    # S3 size is fixed and key does not change the object size
+    single_item_size = 1000000
+    total_post_storage_size_bytes = single_item_size * len(eval_values)
 
-  print("[INFO] Parsing evaluation ...", end='')
+  print("[INFO] Parsing evaluation ...")
   df = pd.DataFrame(results.values())
 
   # generate path to save the results
