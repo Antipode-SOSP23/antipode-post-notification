@@ -166,28 +166,31 @@ ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-
 1. Go AWS dashboard and create buckets within all zones. Note that names are unique and you will probably need to use a different one
     - Name: `antipode-lambda-posts-<region>`
     - Enabled versioning
-2. Go the bucket in the primary region, go to the Managemen tab and create replication from the bucket in that region other buckets
+2. Go the bucket in the _primary region_. Go to `Management` tab and create replication from the bucket in that region other region's buckets
     - Name: `to-reader-<secondary region>`
     - Rule scope: apply to all objects
     - On Destination click `Browse S3` and find the bucket named: `antipode-lambda-posts-<secondary region>`
-    - Use the `antipode-lambda-s3-admin` IAM role
-        - This is a rule that gives S3 admin access to operations needed
+    - Use the `antipode-lambda-s3-admin` IAM role. This is a rule that gives S3 admin access to operations needed
     - Do not select RTC
-    - When created do not choose `replicate existing objects`
+    - When created do not choose `Replicate existing objects`
 
+<!---
 NOTE: we should also change the replication priority for each deployment (input on code and wait for changes in dashboard?)
+-->
 
 #### DynamoDB
-1. On each region create tables for `posts`, `notifications` and `posts-antipode`
-    - For name and partition key check the `connection_info.yaml` file
-    - Select everything default
-    - In table settings, select customize settings and change `Read/Write` capacity settings to `On-demand`
-2. After created go to dashboard on the primary region and select Tables:
+1. On each region create the following tables:
+    - `posts`: with `k` as partition key
+    - `notifications`: with `k` as partition key
+    - `posts-antipode`: with `key` as partition key and `context_id` as sort key
+2. Update the `connection_info.yaml` file with the new table names
+3. For remaining settings select everything default. In table settings, select customize settings and change `Read/Write` capacity settings to `On-demand`
+4. After created go to dashboard on the primary region and select Tables:
     - For the 3 tables (`posts`, `notifications`, `posts-antipode`) do the following:
         - Go to `Global Tables`
         - Create replica to the desired region
         - Double check in secondary region if tables got created
-3. For the `notifications` tables in the secondary regions, go to `Export` and `Streams` and obtain the stream ARN to be configured in the `connection_info.yaml` file
+5. For the `notifications` tables in the secondary regions, go to `Export` and `Streams` and obtain the stream ARN to be configured in the `connection_info.yaml` file
 
 #### Redis (Elasticache)
 1. Go to Global Datastores and create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone). The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:

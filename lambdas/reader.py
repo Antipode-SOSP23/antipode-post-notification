@@ -57,17 +57,19 @@ def lambda_handler(event, context):
   context = Context.from_json(event['context'])
 
   if ANTIPODE:
-    # eval antipode
+    # eval barrier
     antipode_start_ts = datetime.utcnow().timestamp()
     antipode_core.barrier(context)
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
+    #
+    consistent_read = read_post(k=event['key'], c=context)
+  else:
+    consistent_read = read_post(k=event['key'])
 
   # read post and fill evaluation
-  evaluation['consistent_read'] = int(read_post(event['key'], context))
+  evaluation['consistent_read'] = int(consistent_read)
   # keep time of read - visibility latency
   evaluation['post_read_at'] = datetime.utcnow().timestamp()
-
-  # Add extra evaluation
   # measure notification event size in original vs. antipode
   evaluation['notification_size_bytes'] = get_deep_size(event)
 

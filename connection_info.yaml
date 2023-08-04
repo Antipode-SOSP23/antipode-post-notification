@@ -57,8 +57,6 @@ datastores:
     arn__eu-central-1__writer: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications
   s3:
     vpc_required: false
-    # common
-    antipode_path: antipode
     # writer eu
     bucket__eu-central-1__writer: antipode-lambda-posts-eu
     # reader us
