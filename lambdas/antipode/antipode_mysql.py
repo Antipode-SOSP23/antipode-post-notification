@@ -2,7 +2,7 @@ import os
 import pymysql
 import pymysql.cursors
 
-MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE']
+MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE_NAME']
 
 def _conn(role):
   # connect to mysql

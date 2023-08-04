@@ -484,7 +484,7 @@ def clean__mysql():
     # context 128bits random has around 40 chars
     # we also add a context for faster index
     sql = f"""
-    CREATE TABLE `{MYSQL_CONN['antipode_table']}` (
+    CREATE TABLE `{MYSQL_CONN['antipode_table_name']}` (
       k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
       b LONGBLOB NOT NULL,
       c VARCHAR(50) NOT NULL,
@@ -493,7 +493,7 @@ def clean__mysql():
     )"""
     cursor.execute(sql)
     mysql_conn.commit()
-    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
@@ -871,6 +871,34 @@ def gather(args):
     # S3 size is fixed and key does not change the object size
     single_item_size = 1000000
     total_post_storage_size_bytes = single_item_size * len(eval_values)
+  elif post_storage == 'mysql':
+    import pymysql
+    import pymysql.cursors
+    MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
+    mysql_conn = pymysql.connect(
+        host=MYSQL_CONN[f"host__{writer_region}__writer"],
+        port=MYSQL_CONN['port'],
+        user=MYSQL_CONN['user'],
+        database=MYSQL_CONN['db'],
+        password=MYSQL_CONN['password'],
+        connect_timeout=60,
+        autocommit=True
+      )
+    table_name = MYSQL_CONN['antipode_table_name'] if antipode_enabled else MYSQL_CONN['post_table_name']
+    with mysql_conn.cursor() as cursor:
+      sql = f"""
+        SELECT
+          (DATA_LENGTH + INDEX_LENGTH) AS `size_bytes`
+        FROM
+          information_schema.TABLES
+        WHERE
+          TABLE_SCHEMA = "{MYSQL_CONN['db']}"
+          AND
+          TABLE_NAME = "{table_name}"
+        LIMIT 1;
+      """
+      cursor.execute(sql)
+      total_post_storage_size_bytes = cursor.fetchone()[0]
 
   print("[INFO] Parsing evaluation ...")
   df = pd.DataFrame(results.values())
