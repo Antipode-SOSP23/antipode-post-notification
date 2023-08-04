@@ -14,7 +14,7 @@ def _conn(role):
 
 def write_post(k):
   post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
-  op = (DYNAMO_POST_TABLE_NAME, 'k', k)
+  op = (k,)
   post_table.put_item(Item={
       'k': str(k),
       'b': os.urandom(350000),

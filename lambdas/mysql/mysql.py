@@ -1,7 +1,6 @@
 import os
 import pymysql
 import pymysql.cursors
-from datetime import datetime
 
 MYSQL_POST_TABLE_NAME = os.environ['MYSQL_POST_TABLE_NAME']
 
@@ -23,19 +22,17 @@ def _mysql_connection(role):
     except pymysql.Error as e:
       print(f"[ERROR] MySQL exception opening connection: {e}")
 
-def write_post(i,k):
+def write_post(k):
   try:
     # connect to mysql
     mysql_conn = _mysql_connection('writer')
-    op = (MYSQL_POST_TABLE_NAME, 'v', k)
-
+    op = (k,)
     with mysql_conn.cursor() as cursor:
       # write with 0:AAAA -> blob of 1Mb
       # 1MB is the maximum packet size!!
-      sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`) VALUES (%s, %s, %s)"
-      cursor.execute(sql, (int(i), op[2], os.urandom(1000000)))
+      sql = f"INSERT INTO `{MYSQL_POST_TABLE_NAME}` (`k`, `b`) VALUES (%s, %s)"
+      cursor.execute(sql, (k, os.urandom(1000000)))
       mysql_conn.commit()
-
     return op
   except pymysql.Error as e:
     print(f"[ERROR] MySQL exception writing post: {e}")
@@ -44,18 +41,12 @@ def write_post(i,k):
 def read_post(k):
   # connect to mysql
   mysql_conn = _mysql_connection('reader')
-
   with mysql_conn.cursor() as cursor:
-    sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `v`=%s"
+    sql = f"SELECT `b` FROM `{MYSQL_POST_TABLE_NAME}` WHERE `k`=%s"
     cursor.execute(sql, (k,))
     result = cursor.fetchone()
     # result is None if not found
     return not(result is None)
-
-def antipode_shim(id, role):
-  import antipode_mysql as ant # this file will get copied when deploying
-
-  return ant.AntipodeMysql(_id=id, conn=_mysql_connection(role))
 
 def clean():
   None

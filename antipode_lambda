@@ -459,7 +459,7 @@ def clean__mysql():
     # Create tables
     sql = f"""
     CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
-      k BIGINT NOT NULL,
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
       b LONGBLOB NOT NULL,
       PRIMARY KEY (k)
     )"""
@@ -485,7 +485,7 @@ def clean__mysql():
     # we also add a context for faster index
     sql = f"""
     CREATE TABLE `{MYSQL_CONN['antipode_table']}` (
-      k BIGINT NOT NULL,
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
       b LONGBLOB NOT NULL,
       c VARCHAR(50) NOT NULL,
       PRIMARY KEY (k),
