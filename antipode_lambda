@@ -389,13 +389,19 @@ def clean(args):
   if args['writer'] or args['reader']:
     args['strong'] = True
 
-  # load build vars
-  post_storage = _get_last('post_storage')
-  notification_storage = _get_last('notification_storage')
+  if args['name'] is None:
+    # load build vars
+    post_storage = _get_last('post_storage')
+    notification_storage = _get_last('notification_storage')
+    print(f"[INFO] Cleaning '{post_storage}-{notification_storage}'... ")
+    getattr(sys.modules[__name__], f"clean__{post_storage}")()
+    getattr(sys.modules[__name__], f"clean__{notification_storage}")()
+  else:
+    # name was passed only cleans that specific storage
+    storage = args['name']
+    print(f"[INFO] Cleaning '{storage}'... ")
+    getattr(sys.modules[__name__], f"clean__{storage}")()
 
-  print(f"[INFO] Cleaning '{post_storage}-{notification_storage}'... ")
-  getattr(sys.modules[__name__], f"clean__{post_storage}")()
-  getattr(sys.modules[__name__], f"clean__{notification_storage}")()
   _clean_sqs_eval()
 
   if args['strong']:
@@ -954,6 +960,7 @@ if __name__ == '__main__':
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
+  clean_parser.add_argument('-n', '--name', required=False, choices=(POST_STORAGE + NOTIFICATION_STORAGE), help="Delete the specified storage by name")
   clean_parser.add_argument('-s', '--strong', action='store_true', help="Delete SAM stacks & Lambdas")
   clean_parser.add_argument('-w', '--writer', action='store_true', help="Delete only the writer")
   clean_parser.add_argument('-r', '--reader', action='store_true', help="Delete only the reader")
