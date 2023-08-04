@@ -193,25 +193,30 @@ NOTE: we should also change the replication priority for each deployment (input 
         - Double check in secondary region if tables got created
 5. For the `notifications` tables in the secondary regions, go to `Export` and `Streams` and obtain the stream ARN to be configured in the `connection_info.yaml` file
 
-#### Redis (Elasticache)
-1. Go to Global Datastores and create a global cluster. Start with the primary zone (if you are adding a zone to an existing cluster just go to the dashboard and add zone). The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
-    - Name: `antipode-lambda-<region>`
-    - Port: 6379 (or the one you define in connection_info.yaml)
-    - Node type: `cache.r5.large`
-    - Num replicas: 1
+#### Redis (AWS ElastiCache)
+Go to AWS ElastiCache dashboard and on the left-side panel select `Global Datastores`.
+
+Click on `Create global cluster`. Start with the primary (writer) zone. If you are adding a zone to an existing cluster just go to the dashboard and click on `Add zone`. The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
+    - Keep `Cluster mode` disabled
+    - For the `Global Datastore info` use `antipode-lambda`
+    - Create a regional cluster with the region's name, e.g. `antipode-lambda-eu`
+    - Set `Engine version` to `6.2` (a different version should not impact results)
+    - Set `Port` to `6379` (or the one you define in `connection_info.yaml`)
+    - Set node type to e.g. `cache.r5.large`
+    - Set `Number of replicas` to 1
     - Create a new Subnet group:
-        - Name: `antipode-lambda-<region>`
-        - Select previously created VPC and Subnet groups
-        - Select the AZ preference to the only AZ that should be there
-    - Select the default SG for the choosed VPC
+        - Name: `antipode-mq-ec`
+        - Select previously created VPC (`antipode-mq`).
+    - Confirm that the `Availability Zone placements` are the same as the AZ from the subnet group. Make the primary on the `a` AZ.
+    - Disable `Auto upgrade minor versions`
     - Disable backups
+    - Select the default Security Group for the chosen VPC
+    - If following the AWS form you should create the secondary (reader) zone next with similar configurations as before but in a new zone.
 
-2. Make sure the subnet in the `connection_info.yaml` file is the one that the reader instance is using
+<!-- Make sure the subnet in the `connection_info.yaml` file is the one that the reader instance is using -->
+Finally, set the the endpoints in the `connection_info.yaml` file. Go back to the AWS ElastiCache dashboard, click on `Redis clusters` on the left-hand panel, click on the regional cluster name, e.g. `antipode-lambda-eu` and the copy the `Primary endpoint` _without_ the port. On the seconda
 
-3. Provide the endpoints in the `connection_info.yaml` file:
-    - Go to the cluster of each zone and get the `Primary endpoint` without port
-
-**WARN/BUG**: you might have to create an EC2 instance on the zone and perform an initial request to "unlock" the zone for EC
+**WARNING**: We found that for some new accounts using the AWS ElastiCache, you might have to create an EC2 instance on the same zone of your cluster and then perform an initial request to kinda "unlock" the zone for ElastiCache.
 
 #### AMQ
 1. Using the previously created VCP, you have to add peering between the reader and writer zone
@@ -241,7 +246,7 @@ NOTE: we should also change the replication priority for each deployment (input 
           ```
           52.0.0.0/16	local       (self)
           50.0.0.0/16	pcx-id      (peering connection to primary, e.g. eu-sg)
-          0.0.0.0/0	  igw-id      (internet gateway)
+          0.0.0.0/0	    igw-id      (internet gateway)
           (you might have more entries from the endpoint configurations)
           ```
 
