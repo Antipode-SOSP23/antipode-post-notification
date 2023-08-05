@@ -21,15 +21,16 @@ NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
-def lambda_handler(event, context):
-  # dynamically load
-  parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
-  if ANTIPODE:
-    read_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'read_post')
-    import antipode_core
-  else:
-    read_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'read_post')
+# dynamically load
+parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
+if ANTIPODE:
+  read_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'read_post')
+  import antipode_core
+else:
+  read_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'read_post')
 
+
+def lambda_handler(event, context):
   received_at = datetime.utcnow().timestamp()
 
   # parse event according to the source notification storage
@@ -61,10 +62,9 @@ def lambda_handler(event, context):
     antipode_start_ts = datetime.utcnow().timestamp()
     antipode_core.barrier(context)
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
-    #
-    consistent_read = read_post(k=event['key'], c=context)
-  else:
-    consistent_read = read_post(k=event['key'])
+
+  # Either with or without Antipode we read the same way
+  consistent_read = read_post(k=event['key'])
 
   # read post and fill evaluation
   evaluation['consistent_read'] = int(consistent_read)
