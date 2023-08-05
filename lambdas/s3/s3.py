@@ -33,3 +33,6 @@ def read_post(k):
 
 def clean():
   None
+
+def stats():
+  return {}

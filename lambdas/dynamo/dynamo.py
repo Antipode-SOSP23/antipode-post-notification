@@ -69,3 +69,6 @@ def parse_event(event):
 
 def clean():
   None
+
+def stats():
+  return {}

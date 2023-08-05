@@ -24,3 +24,11 @@ def read_post(k):
 def clean():
   # only the writer has permissions to clean
   _conn('writer').flushall()
+
+def stats():
+  stats = {}
+  # gather total memory
+  r = _conn('writer').execute_command('MEMORY STATS')
+  stats['dataset.bytes'] = r['dataset.bytes']
+  #
+  return stats

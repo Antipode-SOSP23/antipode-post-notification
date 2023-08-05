@@ -869,46 +869,8 @@ def gather(args):
     total_notification_storage_size_bytes += r['notification_size_bytes']
     del r['notification_size_bytes']
 
-  if post_storage == 'dynamo':
-    # we hard code each item size since Dynamo does not have a way to
-    # get the table size (only if you wait 6h+)
-    # Hence, we used this calculator in an item with and without antipode
-    # https://zaccharles.github.io/dynamodb-calculator/
-    # and we got to these values
-    single_item_size = r['post_size_bytes'] = 350062 if antipode_enabled else 350014
-    total_post_storage_size_bytes = single_item_size * len(eval_values)
-  elif post_storage == 's3':
-    # S3 size is fixed and key does not change the object size
-    single_item_size = 1000000
-    total_post_storage_size_bytes = single_item_size * len(eval_values)
-  elif post_storage == 'mysql':
-    import pymysql
-    import pymysql.cursors
-    MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
-    mysql_conn = pymysql.connect(
-        host=MYSQL_CONN[f"host__{writer_region}__writer"],
-        port=MYSQL_CONN['port'],
-        user=MYSQL_CONN['user'],
-        database=MYSQL_CONN['db'],
-        password=MYSQL_CONN['password'],
-        connect_timeout=60,
-        autocommit=True
-      )
-    table_name = MYSQL_CONN['antipode_table_name'] if antipode_enabled else MYSQL_CONN['post_table_name']
-    with mysql_conn.cursor() as cursor:
-      sql = f"""
-        SELECT
-          (DATA_LENGTH + INDEX_LENGTH) AS `size_bytes`
-        FROM
-          information_schema.TABLES
-        WHERE
-          TABLE_SCHEMA = "{MYSQL_CONN['db']}"
-          AND
-          TABLE_NAME = "{table_name}"
-        LIMIT 1;
-      """
-      cursor.execute(sql)
-      total_post_storage_size_bytes = cursor.fetchone()[0]
+  print("[INFO] Gather overall stats ...")
+  stats = getattr(sys.modules[__name__], f"gather_stats__{post_storage}")()
 
   print("[INFO] Parsing evaluation ...")
   df = pd.DataFrame(results.values())
@@ -935,7 +897,7 @@ def gather(args):
       '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
       'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
       'TOTAL NOTIFICATION SIZE (BYTES)': total_notification_storage_size_bytes,
-      'TOTAL STORAGE SIZE (BYTES)': total_post_storage_size_bytes,
+      'TOTAL STORAGE SIZE (BYTES)': stats['total_post_storage_size_bytes'],
     }
 
   # save the pandas describe
@@ -953,6 +915,79 @@ def gather(args):
   # print file to stdout
   with open(info_path, 'r') as f:
     print(f.read())
+
+def gather_stats__dynamo():
+  # we hard code each item size since Dynamo does not have a way to
+  # get the table size (only if you wait 6h+)
+  # Hence, we used this calculator in an item with and without antipode
+  # https://zaccharles.github.io/dynamodb-calculator/
+  # and we got to these values
+  single_item_size = 350062 if _get_last('antipode_enabled') else 350014
+  return {
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests')
+  }
+
+def gather_stats__s3():
+  # S3 size is fixed and key does not change the object size
+  single_item_size = 1000000
+  return {
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests')
+  }
+
+def gather_stats__mysql():
+  import pymysql
+  import pymysql.cursors
+
+  MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
+  writer_region = _get_last('writer_region')
+  table_name = MYSQL_CONN['antipode_table_name'] if _get_last('antipode_enabled') else MYSQL_CONN['post_table_name']
+
+  mysql_conn = pymysql.connect(
+      host=MYSQL_CONN[f"host__{writer_region}__writer"],
+      port=MYSQL_CONN['port'],
+      user=MYSQL_CONN['user'],
+      database=MYSQL_CONN['db'],
+      password=MYSQL_CONN['password'],
+      connect_timeout=60,
+      autocommit=True
+    )
+  with mysql_conn.cursor() as cursor:
+    sql = f"""
+      SELECT
+        (DATA_LENGTH + INDEX_LENGTH) AS `size_bytes`
+      FROM
+        information_schema.TABLES
+      WHERE
+        TABLE_SCHEMA = "{MYSQL_CONN['db']}"
+        AND
+        TABLE_NAME = "{table_name}"
+      LIMIT 1;
+    """
+    cursor.execute(sql)
+    return {
+      'total_post_storage_size_bytes': cursor.fetchone()[0]
+    }
+
+def gather_stats__cache():
+  import boto3
+
+  # only way to get redis size is from within VPC
+  # hence we trigger a Lambda with a specific stats action tag
+  writer_region = _get_last('writer_region')
+  writer_lambda_arn = _get_last(f"writer__lambda__arn")
+  writer_client = boto3.client('lambda', region_name=writer_region)
+  response = writer_client.invoke(
+      FunctionName=writer_lambda_arn,
+      InvocationType='RequestResponse',
+      Payload= json.dumps({ LAMBDA_STATS_TAG: 1 })
+    )
+  # exists if we get a 200 or 202 (for async) return code
+  if response['ResponseMetadata']['HTTPStatusCode'] != 200:
+    raise Exception('Failed to gather cache storage')
+  stats = json.loads(response['Payload'].read())['body']['stats']
+  return {
+    'total_post_storage_size_bytes': stats['dataset.bytes']
+  }
 
 
 #--------------
@@ -990,6 +1025,7 @@ REGIONS = {
 }
 LAMBDA_TIMEOUT_SECONDS = 900
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
+LAMBDA_STATS_TAG = "-#STATS#-"
 # cap CPU cores are 8
 CORE_COUNT = min(mp.cpu_count(), 8)
 NOTIFICATION_KEY_LEN = 10

@@ -32,6 +32,10 @@ def lambda_handler(event, context):
     getattr(importlib.import_module(f"{POST_STORAGE}"), 'clean')()
     getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'clean')()
     return { 'statusCode': 200, 'body': event }
+  if "-#STATS#-" in event:
+    # dynamically call stats
+    event['stats'] = getattr(importlib.import_module(f"{POST_STORAGE}"), 'stats')()
+    return { 'statusCode': 200, 'body': event }
 
   #------
 
