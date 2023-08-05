@@ -37,7 +37,3 @@ def wait(operations):
 def read_post(k):
   r = _conn('reader')
   return bool(r.exists(k))
-
-##
-# Keep this import at the end so all methods are defined when Antipode's wait register is called
-import antipode_core

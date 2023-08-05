@@ -21,7 +21,7 @@ DELAY_MS = int(os.environ['DELAY_MS'])
 write_notification = getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'write_notification')
 if ANTIPODE:
   write_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'write_post')
-  import antipode_core
+  import antipode_core # import after importing module due to wait_registry
 else:
   write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
 

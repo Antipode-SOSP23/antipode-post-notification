@@ -56,7 +56,3 @@ def read_post(k,c):
     else:
       # unknnown errors raise again
       raise
-
-##
-# Keep this import at the end so all methods are defined when Antipode's wait register is called
-import antipode_core
