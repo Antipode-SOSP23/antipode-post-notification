@@ -918,18 +918,20 @@ def gather(args):
 
 def gather_stats__dynamo():
   # we hard code each item size since Dynamo does not have a way to
-  # get the table size (only if you wait 6h+)
+  # get the table size (only if you wait 6h+ ...)
   # Hence, we used this calculator in an item with and without antipode
   # https://zaccharles.github.io/dynamodb-calculator/
   # and we got to these values
-  single_item_size = 350062 if _get_last('antipode_enabled') else 350014
+  single_item_size = 350054 if _get_last('antipode_enabled') else 350012
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests')
   }
 
 def gather_stats__s3():
   # S3 size is fixed and key does not change the object size
-  single_item_size = 1000000
+  # (1000) from object
+  # (320) from Antipode's metadata
+  single_item_size = 1000000 +  320 if _get_last('antipode_enabled') else 0
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests')
   }
