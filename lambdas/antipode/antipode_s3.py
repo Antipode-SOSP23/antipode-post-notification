@@ -30,7 +30,7 @@ def wait(cid, operations):
     while True:
       try:
         r = s3_client.head_object(Bucket=bucket, Key=k, VersionId=vid)
-        if 'cid' in r['Metadata'] and r['Metadata']['cid'] == cid:
+        if 'cid' in r['Metadata'] and r['Metadata'].get('cid', None) == cid:
           break
       except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] in ['NoSuchKey','404']:
@@ -39,7 +39,7 @@ def wait(cid, operations):
         else:
           raise
 
-def read_post(k,c):
+def read_post(k):
   s3_client = boto3.client('s3')
   bucket = _bucket('reader')
   try:

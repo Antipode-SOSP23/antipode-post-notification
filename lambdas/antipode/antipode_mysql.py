@@ -47,7 +47,7 @@ def wait(cid, operations):
         if cursor.fetchone() is not None:
           break
 
-def read_post(k, c):
+def read_post(k):
   # connect to mysql
   mysql_conn = _conn('reader')
   with mysql_conn.cursor() as cursor:

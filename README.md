@@ -183,11 +183,9 @@ NOTE: we should also change the replication priority for each deployment (input 
 1. On each region create the following tables:
     - `posts`: with `k` as partition key
     - `notifications`: with `k` as partition key
-    - `posts-antipode`: with `key` as partition key and `context_id` as sort key
 2. Update the `connection_info.yaml` file with the new table names
 3. For remaining settings select everything default. In table settings, select customize settings and change `Read/Write` capacity settings to `On-demand`
-4. After created go to dashboard on the primary region and select Tables:
-    - For the 3 tables (`posts`, `notifications`, `posts-antipode`) do the following:
+4. After created go to DynameDB dashboard on the _primary_ region and select `Tables` on the left-hand panel. For each table do the following:
         - Go to `Global Tables`
         - Create replica to the desired region
         - Double check in secondary region if tables got created
