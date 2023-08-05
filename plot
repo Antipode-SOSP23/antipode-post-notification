@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import os
 import sys
 import pandas as pd
@@ -13,7 +14,19 @@ import re
 import inspect
 import argparse
 import yaml
+from statistics import median, mean
 
+
+#--------------
+# HELPERS
+#--------------
+def _load_yaml(path):
+  import yaml
+  with open(path, 'r') as f:
+    return yaml.safe_load(f) or {}
+
+def flatten(l):
+  return [item for sublist in l for item in sublist]
 
 #--------------
 # PLOTS
@@ -25,7 +38,7 @@ def plot__consistency_window(config):
   plt.rcParams["figure.dpi"] = 600
   plt.rcParams['axes.labelsize'] = 'small'
 
-  # <Post Storage>-SNS
+  # <Post Storage>-SNS --> force paths that only have SNS
   data = {}
   for gather_path in config['gather_paths']:
     # 'Post Storage': 'DynamoDB',
@@ -34,21 +47,31 @@ def plot__consistency_window(config):
     # 'Original': round(544.02),
     # 'Antipode': round(1551.94),
     traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
+    traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
-    # ignoring notification_storage since we fix one for this plot
-    post_storage , _ = traces_filepath.parts[-3].split('-')
+    # skip paths not from sns
+    if traces_tags['NOTIFICATION_STORAGE'] != 'sns':
+      print(f"[WARN] Skipping experiment with notification storage not SNS")
+      continue
 
+    post_storage = traces_tags['POST_STORAGE']
     # check if combination already in the data folder
     if post_storage not in data:
       data[post_storage] = {
         'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
+        # KEEP THIS ORDER -- otherwise plot will get wrong order as well
+        'Original': [],
+        'Antipode': [], # init Antipode and Original with array due to multiple rounds
       }
 
     # find out if antipode is enabled
-    run_type = 'Antipode' if 'antipode' in traces_filepath.parts[-2] else 'Original'
+    run_type = 'Antipode' if traces_tags['ANTIPODE_ENABLED'] else 'Original'
 
-    df = pd.read_csv(traces_filepath,sep=';',index_col=0)
-    data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
+    data[post_storage][run_type].append(pd.read_csv(traces_filepath,sep=';',index_col=0))
+
+  for _,e in data.items():
+    e['Antipode'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Antipode'] ]), 50))
+    e['Original'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Original'] ]), 50))
 
   data = list(data.values())
 
@@ -56,7 +79,6 @@ def plot__consistency_window(config):
   # stacked bars are presented correctly
   for d in data:
     d['Antipode'] = max(0, d['Antipode'] - d['Original'])
-
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
   log = True
@@ -108,12 +130,8 @@ def plot__delay_vs_per_inconsistencies(config):
     for path in glob.glob(pattern):
       delay_ms = int(re.search(r'delay-([0-9]*)ms', path).group(1))
 
-      # open traces.info file
-      per_inconsistencies = None
-      with open(Path(path) / 'traces.info', 'r') as f:
-        for line in f:
-          if line.startswith('[%_INCONSISTENCIES]'):
-            per_inconsistencies = float(line.split(' ')[1])
+      traces_tags = _load_yaml(Path(path) / 'tags.yml')
+      per_inconsistencies = traces_tags['%_INCONSISTENCIES']
 
       # write data entry
       if combination not in data:
