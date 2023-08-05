@@ -37,9 +37,9 @@ def write_post(k, c):
     print(f"[ERROR] MySQL exception writing post: {e}")
     exit(-1)
 
-def wait(operations):
+def wait(cid, operations):
   mysql_conn = _conn('reader')
-  for (k,cid) in operations:
+  for (k,) in operations:
     while True:
       with mysql_conn.cursor() as cursor:
         sql = f"SELECT 1 FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `c`=%s"

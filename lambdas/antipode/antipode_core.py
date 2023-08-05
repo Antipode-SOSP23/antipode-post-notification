@@ -7,7 +7,7 @@ wait_registry = {
 
 def barrier(context):
   for storage,operations in context.c['operations'].items():
-    wait_registry[storage](operations)
+    wait_registry[storage](context._id, operations)
 
 def fetch_operations(context, storage):
   if storage not in context.c['operations']:

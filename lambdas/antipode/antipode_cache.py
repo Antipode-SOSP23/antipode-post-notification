@@ -23,13 +23,13 @@ def write_post(k, c):
   wid = (k,)
   return wid
 
-def wait(operations):
+def wait(cid, operations):
   r = _conn('reader')
   # read context operations
   # wid -> k
-  for (cid,wid) in operations:
+  for (k,) in operations:
     while True:
-      if bool(r.exists(cid)) and bool(r.exists(wid)):
+      if bool(r.exists(cid)) and bool(r.exists(k)):
         break
       else:
         print(f"[RETRY] Read {cid}", flush=True)

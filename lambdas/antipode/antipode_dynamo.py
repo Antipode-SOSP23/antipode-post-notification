@@ -20,12 +20,12 @@ def write_post(k, c):
   wid = (k,)
   return wid
 
-def wait(operations):
+def wait(cid, operations):
   post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
   # read all keys in context
-  for op in operations:
+  for (k,) in operations:
     while True:
-      if 'Item' in post_table.get_item(Key={'key': op[0], 'context_id': op[1]}, AttributesToGet=['key']):
+      if 'Item' in post_table.get_item(Key={'key': k, 'context_id': cid}, AttributesToGet=['key']):
         break
 
 def read_post(k, c):
