@@ -378,7 +378,7 @@ def _clean_service(role):
       '--region', _get_last(f"{role}_region"),
       '--stack-name', _get_last(f"{role}_stack_name"),
   ] & FG
-  aws['cloudformation', 'wait' 'stack-delete-complete',
+  aws['cloudformation', 'wait', 'stack-delete-complete',
       '--region', _get_last(f"{role}_region"),
       '--stack-name', _get_last(f"{role}_stack_name"),
   ] & FG
