@@ -885,6 +885,7 @@ def gather(args):
   os.makedirs(gather_path, mode=0o777, exist_ok=True)
   csv_path = gather_path / 'traces.csv'
   info_path = gather_path / 'traces.info'
+  tags_path = gather_path / 'tags.yml'
 
   # save to csv so we can plot a timeline later
   df.to_csv(csv_path, sep=';', mode='w')
@@ -895,15 +896,16 @@ def gather(args):
   # from sent_at@i=0 to sent_at@i=0
   time_spent_by_client = last_client_replied - first_client_sent
 
-
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
-      'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
-      '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
-      'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
-      'TOTAL NOTIFICATION SIZE (BYTES)': total_notification_storage_size_bytes,
-      'TOTAL STORAGE SIZE (BYTES)': stats['total_post_storage_size_bytes'],
-    }
+    'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
+    '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
+    'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
+    'TOTAL_NOTIFICATION_SIZE_BYTES': total_notification_storage_size_bytes,
+    'TOTAL_POST_STORAGE_SIZE_BYTES': stats['total_post_storage_size_bytes'],
+  }
+  _dump_yaml(tags_path, eval_tags)
+  print(f"[INFO] Save '{tags_path}'\n")
 
   # save the pandas describe
   # pd.set_option('display.float_format', lambda x: '%.3f' % x)
@@ -912,13 +914,12 @@ def gather(args):
   pd.set_option('display.max_columns', None)
   pd.set_option('display.expand_frame_repr', False)
   with open(info_path, 'w') as f:
-    for tag,v in eval_tags.items():
-      print(f"[{tag}] {v}", file=f)
-    print("", file=f)
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
   with open(info_path, 'r') as f:
+    pp(eval_tags)
+    print("\n")
     print(f.read())
 
 def gather_stats__dynamo():
