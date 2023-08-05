@@ -1,35 +1,43 @@
+import os
 import redis
-import antipode as ant
 
-class AntipodeCache:
-  def __init__(self, _id, conn):
-    self._id = _id
-    self.conn = conn
+CACHE_PORT = os.environ['CACHE_PORT']
 
-  def _id(self):
-    return self._id
+def _conn(role):
+  role = role.upper()
+  role_region = os.environ[f"{role}_REGION"]
+  host = os.environ[f"CACHE_HOST__{role_region.replace('-','_').upper()}__{role}"]
+  return redis.Redis(host=host, port=CACHE_PORT, db=0,
+      charset="utf-8", decode_responses=True,
+      socket_connect_timeout=5, socket_timeout=5
+    )
 
-  def _cscope_key(self, cid):
-    return f"cscope.{cid}"
+def write_post(k, c):
+  # Execute this in a transaction so both keys are replicated at the same time
+  # With this setup we also ensure quicker reads either k or context id
+  tx = _conn('writer').pipeline()
+  tx.set(k, str(os.urandom(1000000)))
+  tx.set(c._id, k)
+  tx.execute()
+  #
+  op = (c._id,k)
+  return op
 
-  def cscope_close(self, c):
-    self.conn.set(self._cscope_key(c._id), c.to_json())
-
-  def retrieve_cscope(self, cscope_id, service_registry):
-    # read cscope_id
+def wait(operations):
+  r = _conn('reader')
+  # read context operations
+  # wid -> k
+  for (cid,wid) in operations:
     while True:
-      cscope_json = self.conn.get(self._cscope_key(cscope_id))
-      if cscope_json is None:
-        print(f"[RETRY] Read {self._cscope_key(cscope_id)}", flush=True)
+      if bool(r.exists(cid)) and bool(r.exists(wid)):
+        break
       else:
-        return ant.Cscope.from_json(service_registry, cscope_json)
+        print(f"[RETRY] Read {cid}", flush=True)
 
-  def cscope_barrier(self, operations):
-    # read post operations
-    for op in operations:
-      # op: (<KEY>)
-      while True:
-        if self.conn.get(op[0]) is None:
-          print(f"[RETRY] Read {op}", flush=True)
-        else:
-          break
+def read_post(k):
+  r = _conn('reader')
+  return bool(r.exists(k))
+
+##
+# Keep this import at the end so all methods are defined when Antipode's wait register is called
+import antipode_core
