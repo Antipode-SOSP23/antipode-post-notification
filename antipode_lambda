@@ -32,6 +32,12 @@ def _load_yaml(path):
   with open(path, 'r') as f:
     return yaml.safe_load(f) or {}
 
+def _dump_yaml(path, d):
+  import yaml
+  path.parent.mkdir(exist_ok=True, parents=True)
+  with open(path, 'w+') as f:
+    yaml.safe_dump(d, f, default_flow_style=False)
+
 def _put_last(k,v):
   import yaml
   doc = {}
@@ -40,8 +46,7 @@ def _put_last(k,v):
     doc = _load_yaml(LAST_INFO_FILE)
   # write new value and save to file
   doc[k] = v
-  with open(LAST_INFO_FILE, 'w+') as f:
-      yaml.safe_dump(doc, f, default_flow_style=False)
+  _dump_yaml(LAST_INFO_FILE, doc)
 
 def _get_last(k):
   import yaml
