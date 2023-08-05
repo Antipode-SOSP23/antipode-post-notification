@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 
-from plumbum import FG, BG
-from plumbum import local
+from plumbum import FG, local
+from pathlib import Path
 import time
+import os
+import sys
+from pprint import pprint as pp
 
-REQUESTS = 1000
+ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+GATHER_PATH = ROOT_PATH / 'gather'
 #--------------
+REQUESTS = 1000
 COMBINATIONS = {
   # (antipode?, writer_region , reader_region, post_storage, notification_storage) : [ delay_0, ... delay_n]
   # e.g. ('eu', 'us', 'mysql', 'sns') : [ 1100, 1200, 1300, 1400, 1500 ]
@@ -15,7 +20,7 @@ COMBINATIONS = {
   (False, 'eu', 'us', 'dynamo', 'sns') : [ 0 ],
   (False, 'eu', 'us', 'mysql', 'sns') : [ 0 ],
   (False, 'eu', 'us', 's3', 'sns') : [ 0 ],
-  
+
   # for delay
   (False, 'eu', 'us', 'cache', 'sns') : [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500 ],
   (False, 'eu', 'us', 'dynamo', 'sns') : [ 100, 200, 300, 400, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000 ],
@@ -30,6 +35,10 @@ COMBINATIONS = {
 }
 
 antipode_lambda = local["./antipode_lambda"]
+
+# Initial clean
+antipode_lambda['clean', '--strong'] & FG
+gathered_dirs = []
 for (antipode, writer_region, reader_region, post_storage, notification_storage),delays in COMBINATIONS.items():
   print('[INFO] New deployment starting:')
   print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
@@ -46,19 +55,21 @@ for (antipode, writer_region, reader_region, post_storage, notification_storage)
     ]
     if antipode:
       build_args.append('-ant')
-    
     antipode_lambda[build_args] & FG
 
-    # preemptive clean just to make sure everything is indeed cleaned
+    # preemptive clean just to make sure datastores are indeed cleaned
     antipode_lambda['clean'] & FG
     # main culprit of this sleep is mostly DYNAMO
     time.sleep(60)
 
-    antipode_lambda['run',
-        '--requests', REQUESTS,
-      ] & FG
-    
+    antipode_lambda['run', '--requests', REQUESTS ] & FG
     antipode_lambda['gather'] & FG
 
+    # find out the gather dir
+    gather_path = max((GATHER_PATH).glob('*/**'), key=os.path.getmtime)
+    gathered_dirs.append(gather_path)
+  #
   antipode_lambda['clean', '--strong'] & FG
-  print('\n[INFO] Done!')
+
+print("[INFO] Gathered results:")
+print('\n'.join([str(p).split(str(GATHER_PATH) + '/')[1] for p in gathered_dirs]))
