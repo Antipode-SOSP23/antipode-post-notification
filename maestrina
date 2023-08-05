@@ -10,6 +10,7 @@ from pprint import pprint as pp
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 GATHER_PATH = ROOT_PATH / 'gather'
 #--------------
+NUM_ROUNDS = 1
 REQUESTS = 1000
 COMBINATIONS = {
   # (antipode?, writer_region , reader_region, post_storage, notification_storage) : [ delay_0, ... delay_n]
@@ -40,34 +41,39 @@ antipode_lambda = local["./antipode_lambda"]
 antipode_lambda['clean', '--strong'] & FG
 gathered_dirs = []
 for (antipode, writer_region, reader_region, post_storage, notification_storage),delays in COMBINATIONS.items():
-  print('[INFO] New deployment starting:')
-  print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
-  print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}")
-  print(f"\t > antipode: {antipode}\n")
-
   for delay in delays:
-    build_args = ['build',
-      '--post-storage', post_storage,
-      '--notification-storage', notification_storage,
-      '--writer', writer_region,
-      '--reader', reader_region,
-      '--delay', delay,
-    ]
-    if antipode:
-      build_args.append('-ant')
-    antipode_lambda[build_args] & FG
+    for nround in range(NUM_ROUNDS):
+      print(f"[INFO] [ROUND #{nround}] Deployment starting:")
+      print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
+      print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}")
+      print(f"\t > antipode: {antipode}\n")
+      print(f"\t > delay: {delay}\n")
 
-    # preemptive clean just to make sure datastores are indeed cleaned
-    antipode_lambda['clean'] & FG
-    # main culprit of this sleep is mostly DYNAMO
-    time.sleep(60)
+      build_args = ['build',
+        '--post-storage', post_storage,
+        '--notification-storage', notification_storage,
+        '--writer', writer_region,
+        '--reader', reader_region,
+        '--delay', delay,
+      ]
+      if antipode:
+        build_args.append('-ant')
+      antipode_lambda[build_args] & FG
 
-    antipode_lambda['run', '--requests', REQUESTS ] & FG
-    antipode_lambda['gather'] & FG
+      # preemptive clean just to make sure datastores are indeed cleaned
+      antipode_lambda['clean'] & FG
+      # main culprit of this sleep is mostly DYNAMO
+      time.sleep(60)
 
-    # find out the gather dir
-    gather_path = max((GATHER_PATH).glob('*/**'), key=os.path.getmtime)
-    gathered_dirs.append(gather_path)
+      antipode_lambda['run', '--requests', REQUESTS ] & FG
+      antipode_lambda['gather'] & FG
+
+      # clean experiment before next round
+      antipode_lambda['clean'] & FG
+
+      # find out the gather dir
+      gather_path = max((GATHER_PATH).glob('*/**'), key=os.path.getmtime)
+      gathered_dirs.append(gather_path)
   #
   antipode_lambda['clean', '--strong'] & FG
 
