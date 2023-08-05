@@ -46,8 +46,9 @@ for (antipode, writer_region, reader_region, post_storage, notification_storage)
       print(f"[INFO] [ROUND #{nround}] Deployment starting:")
       print(f"\t > writer region: {writer_region} // reader region: {reader_region}")
       print(f"\t > app: {post_storage.upper()}-{notification_storage.upper()}")
-      print(f"\t > antipode: {antipode}\n")
-      print(f"\t > delay: {delay}\n")
+      print(f"\t > antipode: {antipode}")
+      print(f"\t > delay: {delay}")
+      print("\n")
 
       build_args = ['build',
         '--post-storage', post_storage,

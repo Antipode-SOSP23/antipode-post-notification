@@ -898,7 +898,13 @@ def gather(args):
 
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
-    'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
+    'POST_STORAGE': post_storage,
+    'NOTIFICATION_STORAGE': notification_storage,
+    'ANTIPODE_ENABLED': antipode_enabled,
+    'DELAY': delay,
+    'READER_REGION': reader_region,
+    'WRITER_REGION': writer_region,
+    'NUM_RESULTS': f"{num_results}/{num_requests}",
     '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
     'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
     'TOTAL_NOTIFICATION_SIZE_BYTES': total_notification_storage_size_bytes,
