@@ -13,9 +13,9 @@ def _conn(role):
     )
 
 def write_post(k):
-  op = (k,) # dont forget the comma :)
   _conn('writer').set(k, str(os.urandom(1000000)))
-  return op
+  wid = (k,) # dont forget the comma :)
+  return wid
 
 def read_post(k):
   r = _conn('reader')

@@ -25,14 +25,14 @@ def _conn(role):
 def write_post(k, c):
   try:
     mysql_conn = _conn('writer')
-    op = (k,c._id)
     with mysql_conn.cursor() as cursor:
       # write with 0:AAAA -> blob of 1Mb
       # 1MB is the maximum packet size!!
       sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`k`, `b`, `c`) VALUES (%s, %s, %s)"
       cursor.execute(sql, (k, os.urandom(1000000), str(c._id)))
       mysql_conn.commit()
-    return op
+    wid = (k,)
+    return wid
   except pymysql.Error as e:
     print(f"[ERROR] MySQL exception writing post: {e}")
     exit(-1)

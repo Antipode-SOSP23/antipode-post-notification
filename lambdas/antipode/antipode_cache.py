@@ -20,8 +20,8 @@ def write_post(k, c):
   tx.set(c._id, k)
   tx.execute()
   #
-  op = (c._id,k)
-  return op
+  wid = (k,)
+  return wid
 
 def wait(operations):
   r = _conn('reader')

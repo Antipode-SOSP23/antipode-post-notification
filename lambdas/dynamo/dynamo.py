@@ -14,12 +14,12 @@ def _conn(role):
 
 def write_post(k):
   post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
-  op = (k,)
   post_table.put_item(Item={
       'k': str(k),
       'b': os.urandom(350000),
     })
-  return op
+  wid = (k,)
+  return wid
 
 def read_post(k):
   post_table = _conn('reader').Table(DYNAMO_POST_TABLE_NAME)

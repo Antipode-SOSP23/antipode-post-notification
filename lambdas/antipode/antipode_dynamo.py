@@ -12,13 +12,13 @@ def _conn(role):
 
 def write_post(k, c):
   post_table = _conn('writer').Table(DYNAMO_ANTIPODE_TABLE)
-  op = (str(k), str(c._id))
   post_table.put_item(Item={
       'key': str(k),
       'context_id': str(c._id),
       'b': os.urandom(350000),
     })
-  return op
+  wid = (k,)
+  return wid
 
 def wait(operations):
   post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)

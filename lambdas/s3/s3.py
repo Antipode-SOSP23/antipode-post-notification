@@ -16,8 +16,8 @@ def write_post(k):
       Key=str(k),
       Body=os.urandom(1000000),
     )
-  op = (k, r['VersionId'])
-  return op
+  wid = (k, r['VersionId'])
+  return wid
 
 def read_post(k):
   s3_client = boto3.client('s3')

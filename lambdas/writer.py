@@ -46,8 +46,8 @@ def lambda_handler(event, context):
   event['writer_start_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:
-    op = write_post(k=event['key'], c=context)
-    antipode_core.append_operation(context, 'post-storage', op)
+    wid = write_post(k=event['key'], c=context)
+    antipode_core.append_operation(context, 'post-storage', wid)
   else:
     write_post(k=event['key'])
 
