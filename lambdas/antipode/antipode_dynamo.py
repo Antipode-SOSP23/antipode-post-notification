@@ -18,7 +18,6 @@ def write_post(k, c):
       'context_id': str(c._id),
       'b': os.urandom(350000),
     })
-  antipode_core.append_operation(c, 'post-storage', op)
   return op
 
 def wait(operations):

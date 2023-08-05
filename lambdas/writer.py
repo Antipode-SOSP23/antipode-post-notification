@@ -17,21 +17,20 @@ NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
-def lambda_handler(event, context):
-  # dynamically load methods according to flags
-  post_storage_clean = getattr(importlib.import_module(f"{POST_STORAGE}"), 'clean')
-  notification_storage_clean = getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'clean')
-  write_notification = getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'write_notification')
-  if ANTIPODE:
-    write_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'write_post')
-  else:
-    write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
+# dynamically load methods according to flags
+write_notification = getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'write_notification')
+if ANTIPODE:
+  write_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'write_post')
+  import antipode_core
+else:
+  write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
 
+def lambda_handler(event, context):
   # this is used in cases where Lambdas are inside a VPC and we cannot clean outside of it
   if "-#CLEAN#-" in event:
     # dynamically call clean
-    post_storage_clean()
-    notification_storage_clean()
+    getattr(importlib.import_module(f"{POST_STORAGE}"), 'clean')()
+    getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"), 'clean')()
     return { 'statusCode': 200, 'body': event }
 
   #------
@@ -43,7 +42,8 @@ def lambda_handler(event, context):
   event['writer_start_at'] = datetime.utcnow().timestamp()
 
   if ANTIPODE:
-    write_post(k=event['key'], c=context)
+    op = write_post(k=event['key'], c=context)
+    antipode_core.append_operation(context, 'post-storage', op)
   else:
     write_post(k=event['key'])
 

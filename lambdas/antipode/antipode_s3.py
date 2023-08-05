@@ -11,7 +11,7 @@ KEY_SEP = '###'
 def _antipode_key(k,cid):
   return f"{k}{KEY_SEP}{cid}"
 
-def write_post(k,c):
+def write_post(k, c):
   s3_client = boto3.client('s3')
   bucket = _bucket('writer')
   # we put to reader's bucket on the return because write post has to be read from that bucket
@@ -23,7 +23,6 @@ def write_post(k,c):
       Body=os.urandom(1000000),
     )
   op = (k, r['VersionId'], c._id)
-  antipode_core.append_operation(c, 'post-storage', op)
   return op
 
 def wait(operations):

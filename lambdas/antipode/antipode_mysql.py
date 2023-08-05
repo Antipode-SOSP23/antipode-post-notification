@@ -32,7 +32,6 @@ def write_post(k, c):
       sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`k`, `b`, `c`) VALUES (%s, %s, %s)"
       cursor.execute(sql, (k, os.urandom(1000000), str(c._id)))
       mysql_conn.commit()
-    antipode_core.append_operation(c, 'post-storage', op)
     return op
   except pymysql.Error as e:
     print(f"[ERROR] MySQL exception writing post: {e}")
