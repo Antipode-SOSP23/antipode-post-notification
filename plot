@@ -185,35 +185,46 @@ def plot__storage_overhead(config):
   plt.rcParams["figure.dpi"] = 600
   plt.rcParams['axes.labelsize'] = 'small'
 
-  # <Post Storage>-SNS --> force paths that only have SNS
   data = {}
   for gather_path in config['gather_paths']:
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
+    # find out if antipode is enabled
+    run_type = 'antipode' if traces_tags['ANTIPODE_ENABLED'] else 'baseline'
+
     post_storage = traces_tags['POST_STORAGE']
+    notification_storage = traces_tags['NOTIFICATION_STORAGE']
+
     # check if combination already in the data folder
     if post_storage not in data:
       data[post_storage] = {
-        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
-        # KEEP THIS ORDER -- otherwise plot will get wrong order as well
-        'Original': [],
-        'Antipode': [], # init Antipode and Original with array due to multiple rounds
+        'storage': post_storage,
+        # init Antipode and Original with array due to multiple rounds
+        'baseline': [],
+        'antipode': [],
       }
-
-    # find out if antipode is enabled
-    run_type = 'Antipode' if traces_tags['ANTIPODE_ENABLED'] else 'Original'
-
     data[post_storage][run_type].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
 
-  for _,e in data.items():
-    # pick median
-    e['Antipode'] = round(np.percentile(e['Antipode'], 50))
-    e['Original'] = round(np.percentile(e['Original'], 50))
-    #
-    e['por_antipode_overhead'] = ((e['Antipode'] - e['Original']) / e['Original'])*100
+    # check if combination already in the data folder
+    if notification_storage not in data:
+      data[notification_storage] = {
+        'storage': notification_storage,
+        # init Antipode and Original with array due to multiple rounds
+        'baseline': [],
+        'antipode': [],
+      }
+    data[notification_storage][run_type].append(traces_tags['TOTAL_NOTIFICATION_SIZE_BYTES'])
 
-  data = list(data.values())
-  pp(data)
+  # pick median from all storage overheads and do the overhead percentage
+  for _,e in data.items():
+    e['antipode'] = round(np.percentile(e['antipode'], 50))
+    e['baseline'] = round(np.percentile(e['baseline'], 50))
+    #
+    e['overhead'] = e['antipode'] - e['baseline']
+    e['por_overhead'] = (e['overhead'] / e['baseline'])*100
+
+  df = pd.DataFrame.from_records(list(data.values())).set_index('storage')
+  pp(df)
 
 #--------------
 # CONSTANTS

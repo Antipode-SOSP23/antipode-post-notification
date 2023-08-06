@@ -37,33 +37,33 @@ We assume the following regions:
 
 For each resource configuration, do not forget to set up the correct endpoints in the corresponding sections (lambda and datastores) in the `connection_info.yaml` file.
 
-**WARNING:** In AWS, go to Service Quotas, AWS Lambda and make sure the applie quota value of concurrent executions is set to 1000 in all regions listed in the following sections.
+**WARNING:** In AWS, go to Service Quotas, AWS Lambda and make sure the apply quota value of concurrent executions is set to 1000 in all regions listed in the following sections.
 
 #### IAM
 
 1. Create a role named `antipode-cloudformation-admin` (name is defined at the end):
-    - Trusted Entity Type: AWS Service
-    - Use Case: search and select CloudFormation
-    - Next, add the following permission policy: Administrator Access
+    - Trusted Entity Type: `AWS Service`
+    - Use Case: search and select `CloudFormation`
+    - Next, add the following permission policy: `Administrator Access`
 2. Create a role named `antipode-lambda-admin` (name is defined at the end):
-    - Trusted Entity Type: AWS Service
-    - Use Case: Lambda
+    - Trusted Entity Type: `AWS Service`
+    - Use Case: `Lambda`
     - Next, add the following permission policies:
-        - Administrator Access
-        - AmazonDynamoDBFullAccess
-        - AmazonEC2FullAccess
-        - AmazonElastiCacheFullAccess
-        - AmazonSNSFullAccess
-        - AmazonSQSFullAccess
-        - AmazonVPCFullAccess
-        - AmazonMQFullAccess
-        - AWSLambda_FullAccess
+        - `Administrator Access`
+        - `AmazonDynamoDBFullAccess`
+        - `AmazonEC2FullAccess`
+        - `AmazonElastiCacheFullAccess`
+        - `AmazonSNSFullAccess`
+        - `AmazonSQSFullAccess`
+        - `AmazonVPCFullAccess`
+        - `AmazonMQFullAccess`
+        - `AWSLambda_FullAccess`
 3. Create a role named `antipode-s3-admin` (name is defined at the end):
-    - Trusted Entity Type: AWS Service
-    - Use Case: search and select S3
+    - Trusted Entity Type: `AWS Service`
+    - Use Case: search and select `S3`
     - Next, add the following permission policies:
-        - AmazonS3FullAccess
-4. Add the endpoints for the first two roles at the begging of connections_info.yaml.
+        - `AmazonS3FullAccess`
+4. Add the endpoints for the first two roles at the begging of `connection_info.yaml`.
 
 #### Evaluation Queue (AWS SQS)
 1. Go to each reader region  (`us-east-1`, `ap-southeast-1`) zone and to the AWS SQS dashboard
@@ -86,12 +86,12 @@ As a tip use the same name for all objects, its easier to track. We use `antipod
     - *MAIN CONCERN*: Amazon ElastiCache (redis) requires an additional subnet with different AZ for the additional replica.
     - *IMPORTANT REMINDER*: the subnet ids used in connections info file correspond to the first one for each zone
 4. Go to Security Groups and select the default one for the created vpc.
-    - Inbound rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
-    - Outbout rules: Add 2 rules for ALL TRAFFIC to Any IPv4 (0.0.0.0/0) and IPv6. Make sure you have a rule for the same SG ID
+    - Inbound rules: Add 2 rules for `ALL TRAFFIC` to Any IPv4 (`0.0.0.0/0`) and IPv6. Make sure you have a rule for the same SG ID
+    - Outbout rules: Add 2 rules for `ALL TRAFFIC `to Any IPv4 (`0.0.0.0/0`) and IPv6. Make sure you have a rule for the same SG ID
 5. Create an Internet Gateway
     - After creating go to `Actions` and attach it to the VPC
 6. Go to Route Tables and select the one created (check the matching vpc id)
-    - Go to Edit Routes and add an entry for 0.0.0.0/0 with target to the created internet gateway - select Internet Gateway and the id will appear
+    - Go to Edit Routes and add an entry for `0.0.0.0/0` with target to the created internet gateway - select Internet Gateway and the id will appear
 7. Go to Endpoints and create an entrypoint for AWS Services needed. Make sure you select the correct VPC, Subnet for the `a` Availability Zone and Security Group:
     - Reader (`eu-central-1`): SQS
     - Writer (`us-east-1`, `ap-southeast-1`): SNS, Dynamo (Gateway)
@@ -261,7 +261,7 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Select pre-created Security group: `antipode-mq`
     - Disable maintenance
 3. Double check that you CAN access the public broker management dashboard
-4. Go the the PRIMARY (writer) zone and edit the created configuration by uncommeting the networkConnectors blocks and replace with this (change the uris as needed):
+4. Go the the PRIMARY (writer) zone and edit the created configuration by uncommenting the networkConnectors blocks and replace with this (change the uris as needed):
     ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
     ```xml
     <networkConnectors>
@@ -339,26 +339,36 @@ In your new config file, provide the gather paths in `consistency_window` for ea
 Note that the antipode trace needs to be listed before the original, as exemplified in the sample file
 
 Build the plot:
-
-    ./plot plots/configs/sample.yml --plots consistency_window
+```zsh
+./plot plots/configs/sample.yml --plots consistency_window
+```
 
 #### Delay vs Inconsistencies Percentage
 
 In your new config file, provide the gather paths in `delay_vs_per_inconsistencies` for each post and notification storages directory.
 
 Change the combinations as needed and build the plot:
+```zsh
+./plot plots/configs/sample.yml --plots delay_vs_per_inconsistencies
+```
 
-    ./plot plots/configs/sample.yml --plots delay_vs_per_inconsistencies
+#### Storage Overhead
+
+In your new config file, provide the gather paths in `storage_overhead`. Change the combinations as needed and build the plot:
+```zsh
+./plot plots/configs/sample.yml --plots storage_overhead
+```
 
 
 ## Paper References
 João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues\
 Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications\
 To appear.\
-[Download](PDF)
+[Paper](Download)
 
 Phillipe Ajoux, Nathan Bronson, Sanjeev Kumar, Wyatt Lloyd, Kaushik Veeraraghavan\
 Challenges to Adopting Stronger Consistency at Scale\
 HotOS 2015.\
-[Download](https://www.usenix.org/system/files/conference/hotos15/hotos15-paper-ajoux.pdf)
+[Paper](https://www.usenix.org/system/files/conference/hotos15/hotos15-paper-ajoux.pdf)
+&nbsp;&nbsp;&nbsp;
 [Presentation](https://www.usenix.org/sites/default/files/conference/protected-files/hotos15_slides_ajoux.pdf)
