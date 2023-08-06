@@ -192,9 +192,9 @@ NOTE: we should also change the replication priority for each deployment (input 
 5. For the `notifications` tables in the secondary regions, go to `Export` and `Streams` and obtain the stream ARN to be configured in the `connection_info.yaml` file
 
 #### Redis (AWS ElastiCache)
-Go to AWS ElastiCache dashboard and on the left-side panel select `Global Datastores`.
+1. Go to AWS ElastiCache dashboard and on the left-side panel select `Global Datastores`.
 
-Click on `Create global cluster`. Start with the primary (writer) zone. If you are adding a zone to an existing cluster just go to the dashboard and click on `Add zone`. The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
+2. Click on `Create global cluster`. Start with the primary (writer) zone. If you are adding a zone to an existing cluster just go to the dashboard and click on `Add zone`. The properties are similar for the other zones you add to the cluster. Configure each zone in the `antipode-lambda` cluster:
     - Keep `Cluster mode` disabled
     - For the `Global Datastore info` use `antipode-lambda`
     - Create a regional cluster with the region's name, e.g. `antipode-lambda-eu`
@@ -212,7 +212,7 @@ Click on `Create global cluster`. Start with the primary (writer) zone. If you a
     - If following the AWS form you should create the secondary (reader) zone next with similar configurations as before but in a new zone.
 
 <!-- Make sure the subnet in the `connection_info.yaml` file is the one that the reader instance is using -->
-Finally, set the the endpoints in the `connection_info.yaml` file. Go back to the AWS ElastiCache dashboard, click on `Redis clusters` on the left-hand panel, click on the regional cluster name, e.g. `antipode-lambda-eu` and the copy the `Primary endpoint` _without_ the port. On the seconda
+3. Finally, set the the endpoints in the `connection_info.yaml` file. Go back to the AWS ElastiCache dashboard, click on `Redis clusters` on the left-hand panel, click on the regional cluster name, e.g. `antipode-lambda-eu` and the copy the `Primary endpoint` _without_ the port. On the seconda
 
 **WARNING**: We found that for some new accounts using the AWS ElastiCache, you might have to create an EC2 instance on the same zone of your cluster and then perform an initial request to kinda "unlock" the zone for ElastiCache.
 
