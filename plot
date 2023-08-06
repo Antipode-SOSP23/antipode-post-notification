@@ -178,6 +178,43 @@ def plot__delay_vs_per_inconsistencies(config):
   print(f"[INFO] Saved plot '{plot_filename}'")
 
 
+def plot__storage_overhead(config):
+  # Apply the default theme
+  sns.set_theme(style='ticks')
+  plt.rcParams["figure.figsize"] = [6,2.9]
+  plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
+
+  # <Post Storage>-SNS --> force paths that only have SNS
+  data = {}
+  for gather_path in config['gather_paths']:
+    traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
+
+    post_storage = traces_tags['POST_STORAGE']
+    # check if combination already in the data folder
+    if post_storage not in data:
+      data[post_storage] = {
+        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
+        # KEEP THIS ORDER -- otherwise plot will get wrong order as well
+        'Original': [],
+        'Antipode': [], # init Antipode and Original with array due to multiple rounds
+      }
+
+    # find out if antipode is enabled
+    run_type = 'Antipode' if traces_tags['ANTIPODE_ENABLED'] else 'Original'
+
+    data[post_storage][run_type].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
+
+  for _,e in data.items():
+    # pick median
+    e['Antipode'] = round(np.percentile(e['Antipode'], 50))
+    e['Original'] = round(np.percentile(e['Original'], 50))
+    #
+    e['por_antipode_overhead'] = ((e['Antipode'] - e['Original']) / e['Original'])*100
+
+  data = list(data.values())
+  pp(data)
+
 #--------------
 # CONSTANTS
 #--------------
