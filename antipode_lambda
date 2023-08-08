@@ -948,7 +948,7 @@ def gather_stats__s3():
   # S3 size is fixed and key does not change the object size
   # (1000) from object
   # (320) from Antipode's metadata
-  single_item_size = 1000000 +  320 if _get_last('antipode_enabled') else 0
+  single_item_size = 1000000 + (320 if _get_last('antipode_enabled') else 0)
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -986,7 +986,6 @@ def gather_stats__mysql():
     """
     cursor.execute(sql)
     r = cursor.fetchone()
-    pp(r)
     return {
       'total_post_storage_size_bytes': r[1],
       'avg_post_storage_size_bytes': r[0],

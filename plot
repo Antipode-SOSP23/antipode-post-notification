@@ -179,12 +179,6 @@ def plot__delay_vs_per_inconsistencies(config):
 
 
 def plot__storage_overhead(config):
-  # Apply the default theme
-  sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,2.9]
-  plt.rcParams["figure.dpi"] = 600
-  plt.rcParams['axes.labelsize'] = 'small'
-
   data = {}
   for gather_path in config['gather_paths']:
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
@@ -200,28 +194,39 @@ def plot__storage_overhead(config):
       data[post_storage] = {
         'storage': post_storage,
         # init Antipode and Original with array due to multiple rounds
-        'baseline': [],
-        'antipode': [],
+        'baseline_total': [],
+        'antipode_total': [],
+        'baseline_avg': [],
+        'antipode_avg': [],
       }
-    data[post_storage][run_type].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
+    data[post_storage][f"{run_type}_total"].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
+    data[post_storage][f"{run_type}_avg"].append(traces_tags['AVG_POST_STORAGE_SIZE_BYTES'])
 
     # check if combination already in the data folder
     if notification_storage not in data:
       data[notification_storage] = {
         'storage': notification_storage,
         # init Antipode and Original with array due to multiple rounds
-        'baseline': [],
-        'antipode': [],
+        'baseline_total': [],
+        'antipode_total': [],
+        'baseline_avg': [],
+        'antipode_avg': [],
       }
-    data[notification_storage][run_type].append(traces_tags['TOTAL_NOTIFICATION_SIZE_BYTES'])
+    data[notification_storage][f"{run_type}_total"].append(traces_tags['TOTAL_NOTIFICATION_SIZE_BYTES'])
+    data[notification_storage][f"{run_type}_avg"].append(traces_tags['AVG_NOTIFICATION_SIZE_BYTES'])
 
   # pick median from all storage overheads and do the overhead percentage
+  pp(data)
   for _,e in data.items():
-    e['antipode'] = round(np.percentile(e['antipode'], 50))
-    e['baseline'] = round(np.percentile(e['baseline'], 50))
+    e['antipode_total'] = round(np.percentile(e['antipode_total'], 50))
+    e['baseline_total'] = round(np.percentile(e['baseline_total'], 50))
+    e['overhead_total'] = e['antipode_total'] - e['baseline_total']
+    e['por_overhead_total'] = (e['overhead_total'] / e['baseline_total'])*100
     #
-    e['overhead'] = e['antipode'] - e['baseline']
-    e['por_overhead'] = (e['overhead'] / e['baseline'])*100
+    e['baseline_avg'] = round(np.percentile(e['baseline_avg'], 50))
+    e['antipode_avg'] = round(np.percentile(e['antipode_avg'], 50))
+    e['overhead_avg'] = e['antipode_avg'] - e['baseline_avg']
+    e['por_overhead_avg'] = (e['overhead_avg'] / e['baseline_avg'])*100
 
   df = pd.DataFrame.from_records(list(data.values())).set_index('storage')
   pp(df)
