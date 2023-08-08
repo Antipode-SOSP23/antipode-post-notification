@@ -26,9 +26,20 @@ def clean():
   _conn('writer').flushall()
 
 def stats():
+  from statistics import mean
+
+  conn = _conn('writer')
   stats = {}
+
   # gather total memory
-  r = _conn('writer').execute_command('MEMORY STATS')
-  stats['dataset.bytes'] = r['dataset.bytes']
-  #
+  r = conn.execute_command('MEMORY STATS')
+  stats['dataset.bytes'] = int(r['dataset.bytes'])
+
+  # gather average memory
+  stats['dataset.avg_bytes'] = []
+  for k in conn.keys():
+    r = conn.execute_command(f"MEMORY USAGE {k}")
+    stats['dataset.avg_bytes'].append(int(r))
+  stats['dataset.avg_bytes'] = mean(stats['dataset.avg_bytes'])
+
   return stats

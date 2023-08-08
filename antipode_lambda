@@ -749,6 +749,7 @@ def gather(args):
   from tqdm import tqdm
   import pandas as pd
   import boto3
+  from statistics import mean
 
   # load build vars
   post_storage = _get_last('post_storage')
@@ -870,6 +871,7 @@ def gather(args):
 
   # total notification event size
   total_notification_storage_size_bytes = 0
+  avg_post_storage_size_bytes = mean([ r['notification_size_bytes'] for _,r in results.items() ])
   for _, r in results.items():
     total_notification_storage_size_bytes += r['notification_size_bytes']
     del r['notification_size_bytes']
@@ -908,7 +910,9 @@ def gather(args):
     '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
     'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
     'TOTAL_NOTIFICATION_SIZE_BYTES': total_notification_storage_size_bytes,
+    'AVG_NOTIFICATION_SIZE_BYTES': avg_post_storage_size_bytes,
     'TOTAL_POST_STORAGE_SIZE_BYTES': stats['total_post_storage_size_bytes'],
+    'AVG_POST_STORAGE_SIZE_BYTES': stats['avg_post_storage_size_bytes'],
   }
   _dump_yaml(tags_path, eval_tags)
   print(f"[INFO] Save '{tags_path}'\n")
@@ -936,7 +940,8 @@ def gather_stats__dynamo():
   # and we got to these values
   single_item_size = 350054 if _get_last('antipode_enabled') else 350012
   return {
-    'total_post_storage_size_bytes': single_item_size * _get_last('requests')
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
+    'avg_post_storage_size_bytes': single_item_size,
   }
 
 def gather_stats__s3():
@@ -945,7 +950,8 @@ def gather_stats__s3():
   # (320) from Antipode's metadata
   single_item_size = 1000000 +  320 if _get_last('antipode_enabled') else 0
   return {
-    'total_post_storage_size_bytes': single_item_size * _get_last('requests')
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
+    'avg_post_storage_size_bytes': single_item_size,
   }
 
 def gather_stats__mysql():
@@ -968,6 +974,7 @@ def gather_stats__mysql():
   with mysql_conn.cursor() as cursor:
     sql = f"""
       SELECT
+        AVG_ROW_LENGTH as 'avg_size_bytes',
         (DATA_LENGTH + INDEX_LENGTH) AS `size_bytes`
       FROM
         information_schema.TABLES
@@ -978,8 +985,11 @@ def gather_stats__mysql():
       LIMIT 1;
     """
     cursor.execute(sql)
+    r = cursor.fetchone()
+    pp(r)
     return {
-      'total_post_storage_size_bytes': cursor.fetchone()[0]
+      'total_post_storage_size_bytes': r[1],
+      'avg_post_storage_size_bytes': r[0],
     }
 
 def gather_stats__cache():
@@ -1000,7 +1010,8 @@ def gather_stats__cache():
     raise Exception('Failed to gather cache storage')
   stats = json.loads(response['Payload'].read())['body']['stats']
   return {
-    'total_post_storage_size_bytes': stats['dataset.bytes']
+    'total_post_storage_size_bytes': stats['dataset.bytes'],
+    'avg_post_storage_size_bytes': stats['dataset.avg_bytes'],
   }
 
 
