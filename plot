@@ -216,10 +216,9 @@ def plot__storage_overhead(config):
     data[notification_storage][f"{run_type}_avg"].append(traces_tags['AVG_NOTIFICATION_SIZE_BYTES'])
 
   # pick median from all storage overheads and do the overhead percentage
-  pp(data)
   for _,e in data.items():
-    e['antipode_total'] = round(np.percentile(e['antipode_total'], 50))
     e['baseline_total'] = round(np.percentile(e['baseline_total'], 50))
+    e['antipode_total'] = round(np.percentile(e['antipode_total'], 50))
     e['overhead_total'] = e['antipode_total'] - e['baseline_total']
     e['por_overhead_total'] = (e['overhead_total'] / e['baseline_total'])*100
     #
