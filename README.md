@@ -26,7 +26,7 @@ Antipode solves this violation by placing a barrier right after the Reader recei
 ### AWS Configurations
 
 Start by configuring your AWS credentials:
-1. Install AWS cli tools `aws` (version 2)
+1. Install [AWS cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) tools `aws` (version 2)
 2. Configure your local authentication profile `aws configure`
 3. Copy generated credentials to the application path `cp ~/.aws/credentials .`
 
