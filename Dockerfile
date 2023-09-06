@@ -1,4 +1,4 @@
-FROM python:3.8-slim-bullseye
+FROM --platform=linux/amd64 python:3.8-slim-bullseye
 LABEL maintainer="jfloff@dpss.inesc-id.pt"
 
 RUN set -ex ;\
