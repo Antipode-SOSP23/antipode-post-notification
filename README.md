@@ -221,6 +221,7 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Check the following material for more details:
         - https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
         - https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
+
       **HUGE WARNING**: WILL NOT WORK WITH VPCs WITH OVERLAPING CIDRS
 
     - Go to the the secondary zone and create a new Peering Connection
@@ -301,7 +302,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 ## Usage
 For a pair of post-storage and notification-storage backends, for instance mysql and sns respectively, and for two regions as writer and reader, for instance EU and US respectively, do the following:
 ```zsh
-./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us`
+./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us
 ```
 To enable Antipode add `-ant` parameter, and to introduce artificial delay before publishing the notification add `--delay <time>` parameter.
 
