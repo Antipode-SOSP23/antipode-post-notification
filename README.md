@@ -101,7 +101,7 @@ Before starting, in each of the zones where you will be deploying MySQL, go the 
 1. On the left side, click on `Parameter Groups`. And create a new one (e.g. `aurora-mysql5.7`)
 2. Although you can let the default parameters stay, you might want to increase max_connections
 
-Now we setup the cluster per se ([reference](ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)):
+Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)):
 1. Go to the writer zone `eu-central-1`
 2. Go to AWS RDS dashboard and click on `Create Database`
 3. Select `Standard Create`
