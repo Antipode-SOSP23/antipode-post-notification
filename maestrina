@@ -22,6 +22,16 @@ COMBINATIONS = {
   (False, 'eu', 'us', 'mysql', 'sns') : [ 0 ],
   (False, 'eu', 'us', 's3', 'sns') : [ 0 ],
 
+  # for inconsistencies percentages
+  (False, 'eu', 'us', 'cache', 'mq') : [ 0 ],
+  (False, 'eu', 'us', 'dynamo', 'mq') : [ 0 ],
+  (False, 'eu', 'us', 'mysql', 'mq') : [ 0 ],
+  (False, 'eu', 'us', 's3', 'mq') : [ 0 ],
+  (False, 'eu', 'us', 'cache', 'dynamo') : [ 0 ],
+  (False, 'eu', 'us', 'dynamo', 'dynamo') : [ 0 ],
+  (False, 'eu', 'us', 'mysql', 'dynamo') : [ 0 ],
+  (False, 'eu', 'us', 's3', 'dynamo') : [ 0 ],
+
   # for delay
   # (False, 'eu', 'us', 'cache', 'sns') : [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500 ],
   # (False, 'eu', 'us', 'dynamo', 'sns') : [ 100, 200, 300, 400, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000 ],
