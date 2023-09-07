@@ -26,7 +26,7 @@ Antipode solves this violation by placing a barrier right after the Reader recei
 ### AWS Configurations
 
 Start by configuring your AWS credentials:
-1. Install AWS cli tools `aws` (version 2)
+1. Install [AWS cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) tools `aws` (version 2)
 2. Configure your local authentication profile `aws configure`
 3. Copy generated credentials to the application path `cp ~/.aws/credentials .`
 
@@ -101,7 +101,7 @@ Before starting, in each of the zones where you will be deploying MySQL, go the 
 1. On the left side, click on `Parameter Groups`. And create a new one (e.g. `aurora-mysql5.7`)
 2. Although you can let the default parameters stay, you might want to increase max_connections
 
-Now we setup the cluster per se ([reference](ref: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)):
+Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)):
 1. Go to the writer zone `eu-central-1`
 2. Go to AWS RDS dashboard and click on `Create Database`
 3. Select `Standard Create`
@@ -221,6 +221,7 @@ NOTE: we should also change the replication priority for each deployment (input 
     - Check the following material for more details:
         - https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html
         - https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html
+
       **HUGE WARNING**: WILL NOT WORK WITH VPCs WITH OVERLAPING CIDRS
 
     - Go to the the secondary zone and create a new Peering Connection
@@ -301,7 +302,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 ## Usage
 For a pair of post-storage and notification-storage backends, for instance mysql and sns respectively, and for two regions as writer and reader, for instance EU and US respectively, do the following:
 ```zsh
-./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us`
+./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us
 ```
 To enable Antipode add `-ant` parameter, and to introduce artificial delay before publishing the notification add `--delay <time>` parameter.
 
