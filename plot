@@ -20,16 +20,76 @@ import yaml
 # PLOTS
 #--------------
 
-def plot__visibility_latency_overhead(config):
-  rendezvous = _plot_overhead(config, 'writer_visibility_latency_ms', True)
-  if rendezvous:
-    _plot_overhead(config, 'write_post_spent_ms', False)
-
-def _plot_overhead(config, metric, log=True):  
+def plot__write_post_overhead(config):  
   # Apply the default theme
   sns.set_theme(style='ticks')
-  y_size = 2.9 if metric == 'writer_visibility_latency_ms' else 2.3
-  plt.rcParams["figure.figsize"] = [6, y_size]
+  plt.rcParams["figure.figsize"] = [6, 2.5]
+  plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
+
+  # <Post Storage>-SNS
+  data = {}
+  rendezvous = False
+  for gather_path in config['gather_paths']:
+    traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
+
+    # ignoring notification_storage since we fix one for this plot
+    post_storage , _ = traces_filepath.parts[-3].split('-')
+
+    # check if combination already in the data folder
+    if post_storage not in data:
+      data[post_storage] = {
+        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
+      }
+
+    if 'rendezvous' in traces_filepath.parts[-2]:
+      run_type = 'rendezvous'
+    else:
+      run_type = 'baseline'
+
+    df = pd.read_csv(traces_filepath,sep=';',index_col=0)
+    
+    data[post_storage][run_type] = round(df['write_post_spent_ms'].mean())
+
+  data = list(data.values())
+
+  # for each Original / Antipode pair we take the Original out of antipode so
+  # stacked bars are presented correctly
+  for d in data:
+    if 'rendezvous' in d and 'baseline' in d:
+      d['rendezvous'] = max(0, d['rendezvous'] - d['baseline'])
+
+
+  df = pd.DataFrame.from_records(data).set_index('Post Storage')
+  pp(df)
+  ax = df.plot(kind='bar', stacked=True, logy=False)
+  ax.set_ylim(1, 1450)
+  plt.xticks(rotation = 0)
+
+  ax.set_ylabel('Write Post (ms)')
+  ax.set_xlabel('')
+
+  # plot baseline bar
+  ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
+  # plot overhead bar
+  labels = [ f"+ {round(e)}" for e in ax.containers[1].datavalues ]
+  ax.bar_label(ax.containers[1], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
+    
+
+  # reverse order of legend and force position to upper left
+  handles, labels = ax.get_legend_handles_labels()
+  ax.legend(handles[::-1], labels[::-1], loc='upper left')
+
+  # save with a unique timestamp
+  plt.tight_layout()
+  plot_filename = f"write_post_overhead__{datetime.now().strftime('%Y%m%d%H%M')}"
+  plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
+  print(f"[INFO] Saved plot '{plot_filename}'")
+  
+def plot__visibility_latency_overhead(config):  
+  # Apply the default theme
+  sns.set_theme(style='ticks')
+  plt.rcParams["figure.figsize"] = [6, 2.9]
   plt.rcParams["figure.dpi"] = 600
   plt.rcParams['axes.labelsize'] = 'small'
 
@@ -58,14 +118,14 @@ def _plot_overhead(config, metric, log=True):
     if 'antipode' in traces_filepath.parts[-2]:
       run_type = 'Antipode'
     elif 'rendezvous' in traces_filepath.parts[-2]:
-      run_type = 'Rendezvous'
+      run_type = 'rendezvous'
       rendezvous = True
     else:
-      run_type = 'Original'
+      run_type = 'baseline'
 
     df = pd.read_csv(traces_filepath,sep=';',index_col=0)
     
-    data[post_storage][run_type] = round(df[metric].mean())
+    data[post_storage][run_type] = round(df['writer_visibility_latency_ms'].mean())
 
   data = list(data.values())
 
@@ -74,32 +134,29 @@ def _plot_overhead(config, metric, log=True):
   for d in data:
     if 'Antipode' in d and 'Original' in d:
       d['Antipode'] = max(0, d['Antipode'] - d['Original'])
-    elif 'Rendezvous' in d and 'Original' in d:
-      d['Rendezvous'] = max(0, d['Rendezvous'] - d['Original'])
+    elif 'rendezvous' in d and 'baseline' in d:
+      d['rendezvous'] = max(0, d['rendezvous'] - d['baseline'])
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
   pp(df)
 
-  bar_colors = None
+  log = True
 
   if log:
-    ax = df.plot(kind='bar', stacked=True, logy=True, color=bar_colors)
+    ax = df.plot(kind='bar', stacked=True, logy=True)
     if rendezvous:
       ax.set_ylim(1, 100000)
     else:
       ax.set_ylim(1, 10000)
     plt.xticks(rotation = 0)
   else:
-    ax = df.plot(kind='bar', stacked=True, logy=False, color=bar_colors)
+    ax = df.plot(kind='bar', stacked=True, logy=False)
     if rendezvous:
       ax.set_ylim(1, 1450)
     plt.xticks(rotation = 0)
 
-  if metric == 'writer_visibility_latency_ms':
-    ax.set_ylabel('Consistency Window (ms)')
-  else:
-    ax.set_ylabel('Write Post (ms)')
+  ax.set_ylabel('Consistency Window (ms)')
   ax.set_xlabel('')
 
   # plot baseline bar
@@ -115,10 +172,7 @@ def _plot_overhead(config, metric, log=True):
 
   # save with a unique timestamp
   plt.tight_layout()
-  if metric == 'writer_visibility_latency_ms':
-    plot_basename = 'visibility_latency_overhead'
-  else:
-    plot_basename = 'write_post_overhead'
+  plot_basename = 'visibility_latency_overhead'
   plot_filename = f"{plot_basename}__{datetime.now().strftime('%Y%m%d%H%M')}"
   plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
@@ -194,67 +248,6 @@ def plot__delay_vs_per_inconsistencies(config):
   plot_filename = f"delay_vs_per_inconsistencies__{datetime.now().strftime('%Y%m%d%H%M')}"
   plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
-
-# specific to rendezvous
-def plot__prevented_inconsistencies(config):
-  # Apply the default theme
-  sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,2.9]
-  plt.rcParams["figure.dpi"] = 600
-  plt.rcParams['axes.labelsize'] = 'small'
-
-  # <Post Storage>-SNS
-  data = {}
-  for gather_path in config['gather_paths']:
-    # 'Post Storage': 'DynamoDB',
-    # # 'Overhead Visibility latency %': (1551.94 / 544.02) * 100.0,
-    # # EU->US
-    # 'Original': round(544.02),
-    # 'Antipode': round(1551.94),
-    traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
-
-    # ignoring notification_storage since we fix one for this plot
-    post_storage , _ = traces_filepath.parts[-3].split('-')
-
-    # check if combination already in the data folder
-    if post_storage not in data: # i dont understand this :(
-      data[post_storage] = {
-        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
-      }
-
-    df = pd.read_csv(traces_filepath,sep=';',index_col=0)
-    
-    data[post_storage]['Rendezvous'] = df['rendezvous_prevented_inconsistency'].sum()
-  
-
-  df = pd.DataFrame.from_dict(data, orient='index').set_index('Post Storage')
-  #log = True
-  log = False
-  if log:
-    ax = df.plot(kind='bar', stacked=True, logy=True)
-    ax.set_ylim(1, 100000)
-    plt.xticks(rotation = 0)
-  else:
-    ax = df.plot(kind='bar', stacked=True, logy=False)
-    plt.xticks(rotation = 0)
-
-  ax.set_ylabel('Prevented Inconsistencies')
-  ax.set_xlabel('')
-
-  # plot baseline bar
-  ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
-
-  # reverse order of legend
-  handles, labels = ax.get_legend_handles_labels()
-  ax.legend(handles[::-1], labels[::-1])
-
-  # save with a unique timestamp
-  plt.tight_layout()
-  plot_filename = f"prevented_inconsistencies__{datetime.now().strftime('%Y%m%d%H%M')}"
-  plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
-  print(f"[INFO] Saved plot '{plot_filename}'")
-
-
 
 #--------------
 # CONSTANTS

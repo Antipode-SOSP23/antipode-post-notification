@@ -29,7 +29,7 @@ If you have antipode add `-ant` to your options. If you have rendezvous add `-rd
 As an alternative method, you can run our maestrina script (all regions, all combinations): `./maestrina` REMINDER: check this to see if its correct
 
 4. At the end, you can build plots:
-    `./plot plots/configs/sample.yml --plots {delay_vs_per_inconsistencies, visibility_latency_overhead}`
+    `./plot plots/configs/sample.yml --plots {delay_vs_per_inconsistencies, visibility_latency_overhead, write_post_overhead}`
 
 
 # AWS Configurations
