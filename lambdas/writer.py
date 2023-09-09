@@ -54,8 +54,10 @@ def lambda_handler(event, context):
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
+        regions = [_region('writer'), _region('reader')]
+        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', monitor=True)
         rendezvous_call_start_ts = datetime.utcnow().timestamp()
-        response = stub.RegisterBranches(pb.RegisterBranchesMessage(rid=rid, regions=[_region('writer'), _region('reader')], service='post_storage'))
+        response = stub.RegisterBranch(request)
         rendezvous_end_ts = datetime.utcnow().timestamp()
         event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
         event['rid'] = rid

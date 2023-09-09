@@ -3,197 +3,129 @@ syntax = "proto3";
 package rendezvous;
 
 service ClientService {
-  // Publish-Subscribe
-  rpc RecoverBranches(RecoverBranchesMessage) returns (RecoverBranchesResponse);
-  rpc SubscribeBranches(SubscribeBranchesMessage) returns (stream SubscribeBranchesResponse);
-  
-  // Unidirectional Streaming
-  rpc CloseBranches(stream CloseBranchMessage) returns (Empty);
-
+  /* Streaming */
+  rpc Subscribe(SubscribeMessage) returns (stream SubscribeResponse);
+  /* Unary RPCs */
   rpc RegisterRequest(RegisterRequestMessage) returns (RegisterRequestResponse);
   rpc RegisterBranch(RegisterBranchMessage) returns (RegisterBranchResponse);
-  rpc RegisterBranches(RegisterBranchesMessage) returns (RegisterBranchesResponse);
+  rpc RegisterBranchesDatastores(RegisterBranchesDatastoresMessage) returns (RegisterBranchesDatastoresResponse);
   rpc CloseBranch(CloseBranchMessage) returns (Empty);
   rpc WaitRequest(WaitRequestMessage) returns (WaitRequestResponse);
   rpc CheckRequest(CheckRequestMessage) returns (CheckRequestResponse);
   rpc CheckRequestByRegions(CheckRequestByRegionsMessage) returns (CheckRequestByRegionsResponse);
-  rpc GetPreventedInconsistencies(Empty) returns (GetPreventedInconsistenciesResponse);
 }
-
-// -----------------
-// Publish-Subscribe
-// -----------------
-
-message RecoverBranchesMessage {
-  string service = 1;
-}
-
-message RecoverBranchesResponse {
-  repeated string bids = 1;
-  bool done = 2;
-}
-
-message SubscribeBranchesMessage {
-  string service = 1;
-  string tag = 2;
-}
-
-message SubscribeBranchesResponse {
-  string bid = 1;
-}
-
-// -----------------------
-// Bidirectional Streaming
-// -----------------------
-
-/* Pending Requests */
-
-message WatchOpenedRequestsMessage {
-  string service = 1;
-}
-
-message WatchOpenedRequestsResponse {
-  repeated string rids = 1;
-  bool done = 2;
-}
-
-/* Waiting Requests */
-
-message WatchPendingRequestsMessage {
-  string service = 1;
-}
-
-message WatchPendingRequestsResponse {
-  repeated string rids = 1;
-  bool done = 2;
-}
-
-// ------------------------
-// Unidirectional Streaming
-// ------------------------
-
-/* Pending Requests */
-
-message GetOpenedRequestsMessage {
-  string service = 1;
-}
-
-message GetOpenedRequestsResponse {
-  repeated string rids = 1;
-}
-
-// -----------
-// Unary RPCs
-// -----------
 
 /* Helpers */
-
 enum RequestStatus {
   OPENED = 0;
   CLOSED = 1;
-  NOT_FOUND = 2;
+  UNKNOWN = 2;
 }
-
 message Empty {
 
 }
 
+/* Metadata for server replication */
 message RequestContext {
   map<string, int32> versions = 1;
 }
 
-/* Register Request */
+/* Publish-Subscribe */
+message SubscribeMessage {
+  string service = 1;
+  string region = 2;
+}
+message SubscribeResponse {
+  string bid = 1;
+  string tag = 2;
+}
 
+/* Register Request */
 message RegisterRequestMessage {
   string rid = 1;
 }
-
 message RegisterRequestResponse {
   string rid = 1;
   RequestContext context = 2;
 }
 
-/* Register Branch */
-
+/* Registers Branches */
 message RegisterBranchMessage {
   string rid = 1;
   string service = 2;
   string tag = 3;
-  string region = 4;
-  RequestContext context = 5;
+  repeated string regions = 4;
+  bool monitor = 5;
+  RequestContext context = 6;
 }
-
 message RegisterBranchResponse {
   string rid = 1;
   string bid = 2;
   RequestContext context = 3;
 }
 
-/* Registers Branches */
-
-message RegisterBranchesMessage {
-  string rid = 1;
-  string service = 2;
-  string tag = 3;
-  repeated string regions = 4;
-  RequestContext context = 5;
+/* Register Branches - SERVERLESS VERSION */
+message DatastoreBranching {
+  string datastore = 1;
+  string tag = 2;
+  repeated string regions = 3;
 }
-
-message RegisterBranchesResponse {
+message RegisterBranchesDatastoresMessage {
   string rid = 1;
-  string bid = 2;
+  repeated string datastores = 2;
+  repeated string regions = 3;
+  repeated string tags = 4;
+  repeated DatastoreBranching branches = 5;
+  RequestContext context = 6;
+}
+message RegisterBranchesDatastoresResponse {
+  string rid = 1;
+  repeated string bids = 2;
   RequestContext context = 3;
 }
 
 /* Close Branch */
-
 message CloseBranchMessage {
   string bid = 1;
   string region = 2;
-  RequestContext context = 3;
+  bool force = 3;
+  RequestContext context = 4;
 }
 
 /* Wait Request */
-
 message WaitRequestMessage {
   string rid = 1;
   string service = 2;
   string region = 3;
-  int32 timeout = 4;
-  RequestContext context = 5;
+  string tag = 4;
+  int32 timeout = 5;
+  //bool async = 6;
+  RequestContext context = 7;
 }
-
 message WaitRequestResponse {
   bool prevented_inconsistency = 1;
+  bool timed_out = 2;
 }
 
 /* Check Request */
-
 message CheckRequestMessage {
   string rid = 1;
   string service = 2;
   string region = 3;
-  RequestContext context = 4;
+  bool detailed = 4;
+  RequestContext context = 5;
 }
-
 message CheckRequestResponse {
   RequestStatus status = 1;
+  map<string, RequestStatus> detailed = 2;
 }
 
 /* Check Request by Regions */
-
 message CheckRequestByRegionsMessage {
   string rid = 1;
   string service = 2;
-  RequestContext context = 4;
+  RequestContext context = 3;
 }
-
 message CheckRequestByRegionsResponse {
-  map<string, RequestStatus> statuses = 1;
-}
-
-/* Get Prevented Inconsistencies */
-
-message GetPreventedInconsistenciesResponse {
-  int64 inconsistencies = 1;
+  map<string, RequestStatus> status = 1;
 }

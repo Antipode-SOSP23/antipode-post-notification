@@ -88,8 +88,8 @@ def lambda_handler(event, context):
     with grpc.insecure_channel(_rendezvous_address('reader')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
-        request = pb.WaitRequestMessage(rid=rid, service='post_storage', region=_region('reader'), timeout=300)
-
+        # set timeout to 300 seconds as a sanity check for the replication delay of S3
+        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), timeout=300)
         rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.WaitRequest(request)
         rendezvous_end_ts = datetime.utcnow().timestamp()
@@ -98,8 +98,8 @@ def lambda_handler(event, context):
           evaluation['rendezvous_prevented_inconsistency'] = 1
           
         elif response.prevented_inconsistency == -1:
-          print(f"[INFO] Rendezvous wait call timedout", flush=True)
-          raise # just to be able to verify later
+          print(f"[ERROR] Rendezvous wait call timed out", flush=True)
+          raise
         
         evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
         evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
