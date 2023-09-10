@@ -5,6 +5,7 @@ import time
 
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
 DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
+RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
@@ -12,26 +13,6 @@ def _conn(role):
       region_name=region,
       endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
     )
-
-# ------------------
-# RENDEZVOUS (FIXME)
-# ------------------
-RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
-RENDEZVOUS_METADATA_VALIDITY_S = 1800 # 30 minutes
-
-def write_post_rendezvous(i, k, bid):
-  op = (DYNAMO_POST_TABLE_NAME, 'k', k)
-
-  post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)
-  post_table.put_item(Item={
-    'k': str(k),
-    'b': os.urandom(350000),
-    'rdv_bid': bid
-    })
-  return op
-# ----------
-# RENDEZVOUS
-# ----------
 
 def write_post(k):
   post_table = _conn('writer').Table(DYNAMO_POST_TABLE_NAME)

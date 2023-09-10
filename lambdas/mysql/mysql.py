@@ -22,29 +22,6 @@ def _mysql_connection(role):
     except pymysql.Error as e:
       print(f"[ERROR] MySQL exception opening connection: {e}")
 
-# ------------------
-# RENDEZVOUS (FIXME)
-# ------------------
-RENDEZVOUS_METADATA_VALIDITY_S = 1800 # 30 minutes
-
-def write_post_rendezvous(i, k, bid):
-  try:
-    # connect to mysql
-    mysql_conn = _mysql_connection('writer')
-    op = (MYSQL_POST_TABLE_NAME, 'v', k)
-
-    with mysql_conn.cursor() as cursor:
-        sql = f"INSERT INTO `{op[0]}` (`k`, `v`, `b`, `rdv_bid`) VALUES (%s, %s, %s, %s)"
-        cursor.execute(sql, (int(i), op[2], os.urandom(1000000), bid))
-        mysql_conn.commit()
-      
-  except pymysql.Error as e:
-    print(f"[ERROR] MySQL exception writing post with rendezvous metadata: {e}")
-    exit(-1)
-# ----------
-# RENDEZVOUS
-# ----------
-
 def write_post(k):
   try:
     # connect to mysql

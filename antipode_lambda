@@ -511,19 +511,12 @@ def clean__mysql():
 
     # Create tables
     if _get_last('rendezvous_enabled'):
-      sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
-    else:
-      sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
-    
-    # Create tables
-    if _get_last('rendezvous_enabled'):
       sql = f"""
       CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
         k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
         b LONGBLOB NOT NULL,
-        rdv_bid VARCHAR(255) NOT NULL,
-        PRIMARY KEY (k),
-        INDEX (rdv_bid)
+        rdv_bid VARCHAR(255),
+        PRIMARY KEY (k)
       )"""
       cursor.execute(sql)
       mysql_conn.commit()
@@ -534,6 +527,11 @@ def clean__mysql():
         b LONGBLOB NOT NULL,
         PRIMARY KEY (k)
       )"""
+      cursor.execute(sql)
+      mysql_conn.commit()
+
+    if _get_last('rendezvous_enabled'):
+      sql = f"CREATE INDEX rdv_bid_index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
       cursor.execute(sql)
       mysql_conn.commit()
 
@@ -976,7 +974,7 @@ def gather(args):
     'POST_STORAGE': post_storage,
     'NOTIFICATION_STORAGE': notification_storage,
     'ANTIPODE_ENABLED': antipode_enabled,
-    'RENDEZVOUS_ENABLED': antipode_enabled,
+    'RENDEZVOUS_ENABLED': rendezvous_enabled,
     'DELAY': delay,
     'READER_REGION': reader_region,
     'WRITER_REGION': writer_region,

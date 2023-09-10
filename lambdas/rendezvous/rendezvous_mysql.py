@@ -1,45 +1,33 @@
 import os
-from rendezvous_shim import RendezvousShim
+import pymysql
+import pymysql.cursors
 
-MYSQL_RENDEZVOUS_TABLE = os.environ['MYSQL_RENDEZVOUS_TABLE']
-RENDEZVOUS_ADDRESS = os.environ['RENDEZVOUS_ADDRESS']
+MYSQL_POST_TABLE_NAME = os.environ['MYSQL_POST_TABLE_NAME']
 
-class RendezvousMysql(RendezvousShim):
-  def __init__(self, conn, service, region):
-    super().__init__(service, region)
-    self.conn = conn
-    self.offset = 0
-    self.max_records = 10000
+def _conn(role):
+  role = role.upper()
+  region = os.environ[f"{role}_REGION"].replace('-','_').upper()
+  while True:
+    try:
+      return pymysql.connect(
+          host=os.environ[f"MYSQL_HOST__{region}__{role}"],
+          port=int(os.environ['MYSQL_PORT']),
+          user=os.environ['MYSQL_USER'],
+          password=os.environ['MYSQL_PASSWORD'],
+          db=os.environ['MYSQL_DB'],
+          connect_timeout=30,
+          autocommit=True
+        )
+    except pymysql.Error as e:
+      print(f"[ERROR] MySQL exception opening connection: {e}")
 
-  def find_metadata(self, bid):
-    with self.conn.cursor() as cursor:
-      sql = f"SELECT `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `bid` = %s"
-      cursor.execute(sql, (bid,))
-      records = cursor.fetchall()
-
-      if records:
-        return records[0][0]
-      
-      self.inconsistency = True
-      return None
-
-  def _parse_metadata(self, record):
-    return record
-  
-  def read_all_metadata(self):
-    with self.conn.cursor() as cursor:
-      # fetch non-expired metadata
-      # is it worth ordering just to control an offset??
-      sql = f"SELECT `bid` FROM `{MYSQL_RENDEZVOUS_TABLE}` WHERE `ts` >= DATE_SUB(NOW(), INTERVAL %s SECOND) ORDER BY `ts` LIMIT %s,%s"
-      cursor.execute(sql, (self.metadata_validity_s, self.offset, self.max_records))
-      records = cursor.fetchall()
-      num_records = cursor.rowcount
-
-      if cursor.rowcount == self.max_records:
-        # track next offset to continue reading in the next function call
-        self.offset += num_records
-      else:
-        # all records were read
-        # reset offset to make sure we do not miss any 'old' records inserted in the meantime
-        self.offset = 0
-      return records
+def write_post(k, m):
+  try:
+    mysql_conn = _conn('writer')
+    with mysql_conn.cursor() as cursor:
+      sql = f"INSERT INTO `{MYSQL_POST_TABLE_NAME}` (`k`, `b`, `rdv_bid`) VALUES (%s, %s, %s)"
+      cursor.execute(sql, (k, os.urandom(1000000), m))
+      mysql_conn.commit()
+  except pymysql.Error as e:
+    print(f"[ERROR] MySQL exception writing post: {e}")
+    exit(-1)

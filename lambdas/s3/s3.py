@@ -7,39 +7,6 @@ def _bucket(role):
   role_region = os.environ[f"{role}_REGION"]
   return os.environ[f"S3_BUCKET__{role_region.replace('-','_').upper()}__{role}"]
 
-# ------------------
-# RENDEZVOUS (FIXME)
-# ------------------
-S3_RENDEZVOUS_PATH = os.environ['S3_RENDEZVOUS_PATH']
-
-def _bucket_key_rendezvous(bid):
-  return f"{S3_RENDEZVOUS_PATH}/{bid}"
-
-def write_post_rendezvous(i, k, bid):
-  # s3 does not support transactions so we have to add two distinct objects
-  s3_client = boto3.client('s3')
-
-  s3_client.put_object(
-    Bucket=_bucket('writer'),
-    Key=str(k),
-    Body=os.urandom(1000000),
-    Metadata={
-        'rdv_bid': bid
-    }
-  )
-  # rendezvous stores object key for later lookups
-  s3_client.put_object(
-    Bucket=_bucket('writer'),
-    Key=_bucket_key_rendezvous(bid),
-    Body=str(k)
-  )
-
-  return (_bucket('reader'), str(k))
-# ----------
-# RENDEZVOUS
-# ----------
-
-
 def write_post(k):
   s3_client = boto3.client('s3')
   # we put to reader's bucket on the return because write post has to be read from that bucket

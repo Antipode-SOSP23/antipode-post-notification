@@ -13,31 +13,6 @@ def _conn(role):
       socket_connect_timeout=5, socket_timeout=5
     )
 
-# ------------------
-# RENDEZVOUS (FIXME)
-# ------------------
-CACHE_RENDEZVOUS_PREFIX = os.environ['CACHE_RENDEZVOUS_PREFIX']
-RENDEZVOUS_METADATA_VALIDITY_S = 1800 # 30 minutes
-
-def _cache_key_rendezvous(bid):
-    return CACHE_RENDEZVOUS_PREFIX + ':' + bid
-
-def write_post_rendezvous(i, k, bid):
-  op = (k,)
-  pipe = _conn('writer').pipeline()
-  post = {
-    'i': 'i',
-    'k': k,
-    'blob': str(os.urandom(1000000))
-  }
-  pipe.set(k, json.dumps(post))
-  pipe.set(_cache_key_rendezvous(bid), 1, ex=RENDEZVOUS_METADATA_VALIDITY_S) # integer 1 uses less memory than empty string
-  pipe.execute()
-  return op
-# ----------
-# RENDEZVOUS
-# ----------
-
 def write_post(k):
   _conn('writer').set(k, str(os.urandom(1000000)))
   wid = (k,) # dont forget the comma :)
