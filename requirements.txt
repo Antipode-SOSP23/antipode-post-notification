@@ -8,5 +8,6 @@ tqdm
 click
 matplotlib
 seaborn
+objsize
 grpcio
 grpcio-tools

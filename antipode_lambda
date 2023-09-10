@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-from pprint import pprint
+from pprint import pprint as pp
 import os
 import sys
 import argparse
@@ -9,7 +9,7 @@ import random
 import string
 import multiprocessing as mp
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from plumbum import FG, BG
 import time
 
@@ -19,10 +19,6 @@ import time
 
 def _dict_reverse_lookup(d, v):
   return list(d.keys())[list(d.values()).index(v)]
-
-# ORIGINAL:
-#def _dict_reverse_lookup(d, v):
-#  return d.keys()[d.values().index(v)]
 
 def _generate_payload(i):
   key = str(i) + ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_uppercase + string.digits, k=NOTIFICATION_KEY_LEN - len(str(i)) - 1))
@@ -37,6 +33,12 @@ def _load_yaml(path):
   with open(path, 'r') as f:
     return yaml.safe_load(f) or {}
 
+def _dump_yaml(path, d):
+  import yaml
+  path.parent.mkdir(exist_ok=True, parents=True)
+  with open(path, 'w+') as f:
+    yaml.safe_dump(d, f, default_flow_style=False)
+
 def _put_last(k,v):
   import yaml
   doc = {}
@@ -45,8 +47,7 @@ def _put_last(k,v):
     doc = _load_yaml(LAST_INFO_FILE)
   # write new value and save to file
   doc[k] = v
-  with open(LAST_INFO_FILE, 'w+') as f:
-      yaml.safe_dump(doc, f, default_flow_style=False)
+  _dump_yaml(LAST_INFO_FILE, doc)
 
 def _get_last(k):
   import yaml
@@ -113,6 +114,7 @@ def _force_docker():
   subprocess.call(args)
   exit()
 
+
 #--------------
 # BUILD
 #--------------
@@ -146,7 +148,7 @@ def _build_service(role, args):
         Type: AWS::Serverless::Function
         Properties:
           Handler: {{ role }}.lambda_handler
-          Runtime: python3.7
+          Runtime: python3.8
           Description: 'Antipode Lambda - {{ post_storage }}<>{{ notification_storage }} - {{ role }}'
           MemorySize: 128
           Timeout: {{ lambda_timeout }}
@@ -166,7 +168,6 @@ def _build_service(role, args):
               WRITER_REGION: {{ writer_region }}
               READER_REGION: {{ reader_region }}
               ANTIPODE: {{ antipode_enabled }}
-              ANTIPODE_RENDEZVOUS_ENABLED: {{ antipode_rendezvous_enabled }}
               RENDEZVOUS: {{ rendezvous_enabled }}
               RENDEZVOUS_EU_CENTRAL_1: {{ rendezvous_eu }}
               RENDEZVOUS_US_EAST_1: {{ rendezvous_us }}
@@ -187,7 +188,6 @@ def _build_service(role, args):
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
     'rendezvous_enabled': int(args['rendezvous']),
-    'antipode_rendezvous_enabled': int(args['antipode_rendezvous']),
     'rendezvous_eu': CONNECTION_INFO['rendezvous']['eu-central-1'],
     'rendezvous_us': CONNECTION_INFO['rendezvous']['us-east-1'],
     'rendezvous_ap': CONNECTION_INFO['rendezvous']['ap-southeast-1'],
@@ -206,6 +206,7 @@ def _build_service(role, args):
     f.write(textwrap.dedent(template_generated).strip())
 
   # copy datastore lib files
+  shutil.copy(ROOT_PATH / 'lambdas' / 'context.py', deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / f"{role}.py", deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / args['post_storage'] / f"{args['post_storage']}.py", deploy_dir)
   shutil.copy(ROOT_PATH / 'lambdas' / args['notification_storage'] / f"{args['notification_storage']}.py", deploy_dir)
@@ -225,7 +226,7 @@ def _build_service(role, args):
 
   # copy antipode code if its enabled
   if args['antipode']:
-    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode.py', deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode_core.py', deploy_dir)
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / f"antipode_{args['post_storage']}.py", deploy_dir)
 
   # copy rendezvous if its enabled
@@ -291,9 +292,6 @@ def _compile_rendezvous_protos():
 def build(args):
   _force_docker()
 
-  # enable antipode in both scenarios
-  if args['antipode_rendezvous']:
-    args['antipode'] = True
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
   _put_last('rendezvous_enabled', args['rendezvous'])
@@ -425,7 +423,13 @@ def _clean_service(role):
       '--region', _get_last(f"{role}_region"),
       '--stack-name', _get_last(f"{role}_stack_name"),
   ] & FG
+  aws['cloudformation', 'wait', 'stack-delete-complete',
+      '--region', _get_last(f"{role}_region"),
+      '--stack-name', _get_last(f"{role}_stack_name"),
+  ] & FG
   print("Done!")
+
+#--------------
 
 def clean(args):
   _force_docker()
@@ -439,13 +443,19 @@ def clean(args):
   if args['writer'] or args['reader']:
     args['strong'] = True
 
-  # load build vars
-  post_storage = _get_last('post_storage')
-  notification_storage = _get_last('notification_storage')
+  if args['name'] is None:
+    # load build vars
+    post_storage = _get_last('post_storage')
+    notification_storage = _get_last('notification_storage')
+    print(f"[INFO] Cleaning '{post_storage}-{notification_storage}'... ")
+    getattr(sys.modules[__name__], f"clean__{post_storage}")()
+    getattr(sys.modules[__name__], f"clean__{notification_storage}")()
+  else:
+    # name was passed only cleans that specific storage
+    storage = args['name']
+    print(f"[INFO] Cleaning '{storage}'... ")
+    getattr(sys.modules[__name__], f"clean__{storage}")()
 
-  print(f"[INFO] Cleaning '{post_storage}-{notification_storage}'... ")
-  getattr(sys.modules[__name__], f"clean__{post_storage}")()
-  getattr(sys.modules[__name__], f"clean__{notification_storage}")()
   _clean_sqs_eval()
 
   if args['strong']:
@@ -476,6 +486,7 @@ def clean__mysql():
       autocommit=True
     )
   with mysql_conn.cursor() as cursor:
+    # Drop database
     try:
       sql = f"DROP DATABASE `{MYSQL_CONN['db']}`"
       cursor.execute(sql)
@@ -488,6 +499,7 @@ def clean__mysql():
         print(f"[WARN] MySQL error: {e}")
         exit(-1)
 
+    # Create database
     try:
       sql = f"CREATE DATABASE `{MYSQL_CONN['db']}`"
       cursor.execute(sql)
@@ -497,16 +509,31 @@ def clean__mysql():
       print(f"[WARN] MySQL error: {e}")
       exit(-1)
 
+    # Create tables
     if _get_last('rendezvous_enabled'):
       sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB, rdv_bid VARCHAR(255))"
     else:
       sql = f"CREATE TABLE `{MYSQL_CONN['post_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}), b LONGBLOB)"
     
-    cursor.execute(sql)
-    mysql_conn.commit()
-
+    # Create tables
     if _get_last('rendezvous_enabled'):
-      sql = f"CREATE INDEX rdv_bid_index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
+      sql = f"""
+      CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
+        k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+        b LONGBLOB NOT NULL,
+        rdv_bid VARCHAR(255) NOT NULL,
+        PRIMARY KEY (k),
+        INDEX (rdv_bid)
+      )"""
+      cursor.execute(sql)
+      mysql_conn.commit()
+    else:
+      sql = f"""
+      CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
+        k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+        b LONGBLOB NOT NULL,
+        PRIMARY KEY (k)
+      )"""
       cursor.execute(sql)
       mysql_conn.commit()
 
@@ -514,17 +541,31 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['notifications_table_name']}` (k BIGINT, v VARCHAR({NOTIFICATION_KEY_LEN}))"
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['notifications_table_name']}` (
+      k BIGINT NOT NULL,
+      v VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      PRIMARY KEY (k)
+    )"""
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['notifications_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
-    sql = f"CREATE TABLE `{MYSQL_CONN['antipode_table']}` (cid VARCHAR(32), json VARCHAR(20000))"
+    # context 128bits random has around 40 chars
+    # we also add a context for faster index
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['antipode_table_name']}` (
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      b LONGBLOB NOT NULL,
+      c VARCHAR(50) NOT NULL,
+      PRIMARY KEY (k),
+      INDEX (c)
+    )"""
     cursor.execute(sql)
     mysql_conn.commit()
-    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table']}`"
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['antipode_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
@@ -680,6 +721,7 @@ def clean__cache():
     raise Exception('Failed to clean cache storage')
   print("Done!")
 
+
 #--------------
 # RUN
 #--------------
@@ -716,6 +758,8 @@ def _writer_pool_init():
   import signal
   # Ignore CTRL+C in the worker process
   signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+#--------------
 
 def run(args):
   from tqdm import tqdm
@@ -768,6 +812,7 @@ def gather(args):
   from tqdm import tqdm
   import pandas as pd
   import boto3
+  from statistics import mean
 
   # load build vars
   post_storage = _get_last('post_storage')
@@ -851,14 +896,13 @@ def gather(args):
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
             'post_written_at': int(item['post_written_at']),
             'write_post_spent_ms': int((item['post_written_at']- item['writer_start_at']) * 1000),
-            'read_post_spent_ms': int(item['read_post_spent_ms'])
+            'notification_size_bytes': int(item['notification_size_bytes']),
+            # 'post_written_at': int(item['post_written_at']),
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
 
           if rendezvous_enabled:
-            #e['rendezvous_writer_spent_ms'] = int(item['rendezvous_writer_spent_ms'])
-            #e['rendezvous_reader_spent_ms'] = int(item['rendezvous_reader_spent_ms'])
             e['rendezvous_call_writer_spent_ms'] = int(item['rendezvous_call_writer_spent_ms'])
             e['rendezvous_call_reader_spent_ms'] = int(item['rendezvous_call_reader_spent_ms'])
             e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])
@@ -898,7 +942,17 @@ def gather(args):
     del r['reply_at']
     del r['post_read_at']
 
-  print("[INFO] Parsing evaluation ...", end='')
+  # total notification event size
+  total_notification_storage_size_bytes = 0
+  avg_post_storage_size_bytes = mean([ r['notification_size_bytes'] for _,r in results.items() ])
+  for _, r in results.items():
+    total_notification_storage_size_bytes += r['notification_size_bytes']
+    del r['notification_size_bytes']
+
+  print("[INFO] Gather overall stats ...")
+  stats = getattr(sys.modules[__name__], f"gather_stats__{post_storage}")()
+
+  print("[INFO] Parsing evaluation ...")
   df = pd.DataFrame(results.values())
 
   # generate path to save the results
@@ -906,6 +960,7 @@ def gather(args):
   os.makedirs(gather_path, mode=0o777, exist_ok=True)
   csv_path = gather_path / 'traces.csv'
   info_path = gather_path / 'traces.info'
+  tags_path = gather_path / 'tags.yml'
 
   # save to csv so we can plot a timeline later
   df.to_csv(csv_path, sep=';', mode='w')
@@ -918,13 +973,26 @@ def gather(args):
 
   # values that we will write in the info file as tags for later parsing
   eval_tags = {
-      'NUM_RESULTS': f"{num_results}/{_get_last('requests')}",
-      '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
-      'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
-    }
-  
+    'POST_STORAGE': post_storage,
+    'NOTIFICATION_STORAGE': notification_storage,
+    'ANTIPODE_ENABLED': antipode_enabled,
+    'RENDEZVOUS_ENABLED': antipode_enabled,
+    'DELAY': delay,
+    'READER_REGION': reader_region,
+    'WRITER_REGION': writer_region,
+    'NUM_RESULTS': f"{num_results}/{num_requests}",
+    '%_INCONSISTENCIES': len(df.query('consistent_read == 0')) / float(len(df)),
+    'THROUGHPUT_ON_CLIENT': num_results / float(time_spent_by_client),
+    'TOTAL_NOTIFICATION_SIZE_BYTES': total_notification_storage_size_bytes,
+    'AVG_NOTIFICATION_SIZE_BYTES': avg_post_storage_size_bytes,
+    'TOTAL_POST_STORAGE_SIZE_BYTES': stats['total_post_storage_size_bytes'],
+    'AVG_POST_STORAGE_SIZE_BYTES': stats['avg_post_storage_size_bytes'],
+  }
   if rendezvous_enabled:
     eval_tags['%_PREVENTED_INCONSISTENCIES'] = len(df.query('rendezvous_prevented_inconsistency == 1')) / float(len(df))
+
+  _dump_yaml(tags_path, eval_tags)
+  print(f"[INFO] Save '{tags_path}'\n")
 
   # save the pandas describe
   # pd.set_option('display.float_format', lambda x: '%.3f' % x)
@@ -933,14 +1001,94 @@ def gather(args):
   pd.set_option('display.max_columns', None)
   pd.set_option('display.expand_frame_repr', False)
   with open(info_path, 'w') as f:
-    for tag,v in eval_tags.items():
-      print(f"[{tag}] {v}", file=f)
-    print("", file=f)
     print(df.describe(percentiles=PERCENTILES_TO_PRINT), file=f)
   print(f"[INFO] Save '{info_path}'\n")
   # print file to stdout
   with open(info_path, 'r') as f:
+    pp(eval_tags)
+    print("\n")
     print(f.read())
+
+def gather_stats__dynamo():
+  # we hard code each item size since Dynamo does not have a way to
+  # get the table size (only if you wait 6h+ ...)
+  # Hence, we used this calculator in an item with and without antipode
+  # https://zaccharles.github.io/dynamodb-calculator/
+  # and we got to these values
+  single_item_size = 350054 if _get_last('antipode_enabled') else 350012
+  return {
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
+    'avg_post_storage_size_bytes': single_item_size,
+  }
+
+def gather_stats__s3():
+  # S3 size is fixed and key does not change the object size
+  # (1000) from object
+  # (320) from Antipode's metadata
+  single_item_size = 1000000 + (320 if _get_last('antipode_enabled') else 0)
+  return {
+    'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
+    'avg_post_storage_size_bytes': single_item_size,
+  }
+
+def gather_stats__mysql():
+  import pymysql
+  import pymysql.cursors
+
+  MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
+  writer_region = _get_last('writer_region')
+  table_name = MYSQL_CONN['antipode_table_name'] if _get_last('antipode_enabled') else MYSQL_CONN['post_table_name']
+
+  mysql_conn = pymysql.connect(
+      host=MYSQL_CONN[f"host__{writer_region}__writer"],
+      port=MYSQL_CONN['port'],
+      user=MYSQL_CONN['user'],
+      database=MYSQL_CONN['db'],
+      password=MYSQL_CONN['password'],
+      connect_timeout=60,
+      autocommit=True
+    )
+  with mysql_conn.cursor() as cursor:
+    sql = f"""
+      SELECT
+        AVG_ROW_LENGTH as 'avg_size_bytes',
+        (DATA_LENGTH + INDEX_LENGTH) AS `size_bytes`
+      FROM
+        information_schema.TABLES
+      WHERE
+        TABLE_SCHEMA = "{MYSQL_CONN['db']}"
+        AND
+        TABLE_NAME = "{table_name}"
+      LIMIT 1;
+    """
+    cursor.execute(sql)
+    r = cursor.fetchone()
+    return {
+      'total_post_storage_size_bytes': r[1],
+      'avg_post_storage_size_bytes': r[0],
+    }
+
+def gather_stats__cache():
+  import boto3
+
+  # only way to get redis size is from within VPC
+  # hence we trigger a Lambda with a specific stats action tag
+  writer_region = _get_last('writer_region')
+  writer_lambda_arn = _get_last(f"writer__lambda__arn")
+  writer_client = boto3.client('lambda', region_name=writer_region)
+  response = writer_client.invoke(
+      FunctionName=writer_lambda_arn,
+      InvocationType='RequestResponse',
+      Payload= json.dumps({ LAMBDA_STATS_TAG: 1 })
+    )
+  # exists if we get a 200 or 202 (for async) return code
+  if response['ResponseMetadata']['HTTPStatusCode'] != 200:
+    raise Exception('Failed to gather cache storage')
+  stats = json.loads(response['Payload'].read())['body']['stats']
+  return {
+    'total_post_storage_size_bytes': stats['dataset.bytes'],
+    'avg_post_storage_size_bytes': stats['dataset.avg_bytes'],
+  }
 
 
 #--------------
@@ -950,9 +1098,10 @@ ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 #--------------
 # post_storage METHODS:
-#   - write_post(i, k) -> op
-#   - read_post(k, evaluation)
-#   - antipode_shim(id, role) -> AntipodeBridge
+#   - write_post(k) -> wid
+#   - (Antipode) write_post(k,c) -> wid
+#   - read_post(k)
+#   - (Antipode) read_post(k,c) -> wid
 #--------------
 # notification_storage METHODS:
 #   - write_notification(event)
@@ -977,10 +1126,12 @@ REGIONS = {
 }
 LAMBDA_TIMEOUT_SECONDS = 900
 LAMBDA_CLEAN_TAG = "-#CLEAN#-"
+LAMBDA_STATS_TAG = "-#STATS#-"
 # cap CPU cores are 8
 CORE_COUNT = min(mp.cpu_count(), 8)
 NOTIFICATION_KEY_LEN = 10
 PERCENTILES_TO_PRINT = [.25, .5, .75, .90, .99]
+
 
 #--------------
 # CMD LINE
@@ -1000,7 +1151,6 @@ if __name__ == '__main__':
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
   build_parser.add_argument('-rdv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
-  build_parser.add_argument('-ant-r', '--antipode-rendezvous', action='store_true', help="Enables antipode rendezvouz point version")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application
@@ -1011,6 +1161,7 @@ if __name__ == '__main__':
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
+  clean_parser.add_argument('-n', '--name', required=False, choices=(POST_STORAGE + NOTIFICATION_STORAGE), help="Delete the specified storage by name")
   clean_parser.add_argument('-s', '--strong', action='store_true', help="Delete SAM stacks & Lambdas")
   clean_parser.add_argument('-w', '--writer', action='store_true', help="Delete only the writer")
   clean_parser.add_argument('-r', '--reader', action='store_true', help="Delete only the reader")

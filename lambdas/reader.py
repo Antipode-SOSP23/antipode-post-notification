@@ -5,6 +5,8 @@ import importlib
 import boto3
 from botocore.client import Config
 import grpc
+from objsize import get_deep_size
+from context import Context
 
 #--------------
 # AWS SAM Deployment details
@@ -12,15 +14,22 @@ import grpc
 # Lambda payload example: (do not forget to invoke the writer first)
 #   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197 }
 # or with antipode:
-#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197, "cscope": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
+#   { "i": "1", "key": "AABB11", "sent_at": 1630247612.943197, "context": "{\"id\": \"0a61880503354d21aaddee74c11af008\", \"operations\": {\"post_storage\": [[\"blobs\", \"v\", \"AABB11\"]]}}" }
 #--------------
 
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
-ANTIPODE_RENDEZVOUS_ENABLED = bool(int(os.environ['ANTIPODE_RENDEZVOUS_ENABLED']))
 RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
 DELAY_MS = int(os.environ['DELAY_MS'])
+
+# dynamically load
+parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
+if ANTIPODE:
+  read_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'read_post')
+  import antipode_core
+else:
+  read_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'read_post')
 
 def _region(role):
   return os.environ[f"{role.upper()}_REGION"]
@@ -29,11 +38,6 @@ def _rendezvous_address(role):
   return os.environ[f"RENDEZVOUS_{_region(role).replace('-','_').upper()}"]
 
 def lambda_handler(event, context):
-  # dynamically load
-  parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_event')
-  read_post = getattr(importlib.import_module(POST_STORAGE), 'read_post')
-  antipode_shim = getattr(importlib.import_module(POST_STORAGE), 'antipode_shim')
-
   received_at = datetime.utcnow().timestamp()
 
   # parse event according to the source notification storage
@@ -61,23 +65,13 @@ def lambda_handler(event, context):
     'rendezvous_prevented_inconsistency': 0,
   }
 
+  # init context
+  context = Context.from_json(event['context'])
+
   if ANTIPODE:
-    # eval antipode
+    # eval barrier
     antipode_start_ts = datetime.utcnow().timestamp()
-
-    # import antipode lib
-    import antipode as ant
-    # init service registry
-    SERVICE_REGISTRY = {
-      'post_storage': antipode_shim('post_storage', 'reader')
-    }
-    # deserialize cscope
-    cscope = ant.Cscope.from_json(SERVICE_REGISTRY, event['cscope'])
-    if ANTIPODE_RENDEZVOUS_ENABLED:
-      cscope.rendezvous_barrier()
-    else:
-      cscope.barrier()
-
+    antipode_core.barrier(context)
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   if RENDEZVOUS:
@@ -108,13 +102,15 @@ def lambda_handler(event, context):
         print(f"[ERROR] Rendezvous exception waiting request: {e.details()}", flush=True)
         raise e
 
+  # Either with or without Antipode we read the same way
+  consistent_read = read_post(k=event['key'])
+
   # read post and fill evaluation
-  post_start_read_at = datetime.utcnow().timestamp()
-  evaluation['consistent_read'] = int(read_post(event['key'], evaluation))
+  evaluation['consistent_read'] = int(consistent_read)
   # keep time of read - visibility latency
-  post_read_at = datetime.utcnow().timestamp()
-  evaluation['post_read_at'] = post_read_at
-  evaluation['read_post_spent_ms'] = int((post_read_at-post_start_read_at) * 1000)
+  evaluation['post_read_at'] = datetime.utcnow().timestamp()
+  # measure notification event size in original vs. antipode
+  evaluation['notification_size_bytes'] = get_deep_size(event)
 
   # write evaluation to SQS queue
   # due to bug with VPC and SQS we have to be explicit regarding the endpoint url

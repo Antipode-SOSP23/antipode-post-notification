@@ -1,39 +1,61 @@
 import os
 import pymysql
-import antipode as ant
+import pymysql.cursors
 
-MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE']
+MYSQL_ANTIPODE_TABLE = os.environ['MYSQL_ANTIPODE_TABLE_NAME']
 
-class AntipodeMysql:
-  def __init__(self, _id, conn):
-    self._id = _id
-    self.conn = conn
+def _conn(role):
+  # connect to mysql
+  role = role.upper()
+  region = os.environ[f"{role}_REGION"].replace('-','_').upper()
+  while True:
+    try:
+      return pymysql.connect(
+          host=os.environ[f"MYSQL_HOST__{region}__{role}"],
+          port=int(os.environ['MYSQL_PORT']),
+          user=os.environ['MYSQL_USER'],
+          password=os.environ['MYSQL_PASSWORD'],
+          db=os.environ['MYSQL_DB'],
+          connect_timeout=30,
+          autocommit=True
+        )
+    except pymysql.Error as e:
+      print(f"[ERROR] MySQL exception opening connection: {e}")
 
-  def _id(self):
-    return self._id
+def write_post(k, c):
+  try:
+    mysql_conn = _conn('writer')
+    with mysql_conn.cursor() as cursor:
+      # write with 0:AAAA -> blob of 1Mb
+      # 1MB is the maximum packet size!!
+      sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`k`, `b`, `c`) VALUES (%s, %s, %s)"
+      cursor.execute(sql, (k, os.urandom(1000000), str(c._id)))
+      mysql_conn.commit()
+    wid = (k,)
+    return wid
+  except pymysql.Error as e:
+    print(f"[ERROR] MySQL exception writing post: {e}")
+    exit(-1)
 
-  def cscope_close(self, c):
-    with self.conn.cursor() as cursor:
-      sql = f"INSERT INTO `{MYSQL_ANTIPODE_TABLE}` (`cid`,`json`) VALUES (%s,%s)"
-      cursor.execute(sql, (c._id,c.to_json()))
-      self.conn.commit()
-
-  def retrieve_cscope(self, cscope_id, service_registry):
-    # read cscope_id
+def wait(cid, operations):
+  mysql_conn = _conn('reader')
+  for (k,) in operations:
     while True:
-      with self.conn.cursor() as cursor:
-        sql = f"SELECT `json` FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `cid`=%s"
-        cursor.execute(sql, (cscope_id,))
-        result = cursor.fetchone()
-        if result is not None:
-          return ant.Cscope.from_json(service_registry, result[0])
+      with mysql_conn.cursor() as cursor:
+        sql = f"SELECT 1 FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `c`=%s"
+        cursor.execute(sql, (cid,))
+        if cursor.fetchone() is not None:
+          break
 
-  def cscope_barrier(self, operations):
-    # read post operations
-    for op in operations:
-      while True:
-        with self.conn.cursor() as cursor:
-          sql = f"SELECT 1 FROM `{op[0]}` WHERE `{op[1]}`=%s"
-          cursor.execute(sql, (op[2],))
-          if cursor.fetchone() is not None:
-            break
+def read_post(k):
+  # connect to mysql
+  mysql_conn = _conn('reader')
+  with mysql_conn.cursor() as cursor:
+    sql = f"SELECT `b` FROM `{MYSQL_ANTIPODE_TABLE}` WHERE `k`=%s"
+    cursor.execute(sql, (k,))
+    result = cursor.fetchone()
+    # result is None if not found
+    return not(result is None)
+
+def clean():
+  None

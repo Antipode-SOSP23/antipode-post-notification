@@ -1,37 +1,53 @@
 import os
 import boto3
-import antipode as ant
+from boto3.dynamodb.conditions import Key, Attr
 
-DYNAMO_ANTIPODE_TABLE = os.environ['DYNAMO_ANTIPODE_TABLE']
+# Using same table as the non-antipode version
+DYNAMO_ANTIPODE_TABLE = os.environ['DYNAMO_POST_TABLE_NAME']
 
-class AntipodeDynamo:
-  def __init__(self, _id, conn):
-    self._id = _id
-    self.conn = conn
-    self.antipode_table = self.conn.Table(DYNAMO_ANTIPODE_TABLE)
+def _conn(role):
+  region = os.environ[f"{role.upper()}_REGION"]
+  return boto3.resource('dynamodb',
+      region_name=region,
+      endpoint_url=f"http://dynamodb.{region}.amazonaws.com"
+    )
 
-  def _id(self):
-    return self._id
+def write_post(k, c):
+  post_table = _conn('writer').Table(DYNAMO_ANTIPODE_TABLE)
+  post_table.put_item(Item={
+      'k': str(k),
+      'cid': str(c._id),
+      'b': os.urandom(350000),
+    })
+  wid = (k,)
+  return wid
 
-  def cscope_close(self, c):
-    # write post
-    self.antipode_table.put_item(Item={
-        # TODO: add FULL cscope
-        'cid': str(c._id),
-        'json': c.to_json(),
-      })
-
-  def retrieve_cscope(self, cscope_id, service_registry):
-    # read cscope_id
+def wait(cid, operations):
+  post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
+  # read all keys in context
+  for (k,) in operations:
     while True:
-      item = self.antipode_table.get_item(Key={'cid': str(cscope_id)})
-      if 'Item' in item:
-        return ant.Cscope.from_json(service_registry, item['Item']['json'])
+      # -- Option 1 : Scan for cid
+      # Even though we could use the key directly, to better assess
+      # Antipode's performance we use a scan by cid first
+      # r = post_table.scan(Select='SPECIFIC_ATTRIBUTES',
+      #   ProjectionExpression='k',
+      #   FilterExpression=Attr('cid').eq(cid))
+      # If we find the context id in the scan, and the object key in the wait
+      # found = any([i['k'] == k for i in r.get('Items', [])])
 
-  def cscope_barrier(self, operations):
-    # read post operations
-    for op in operations:
-      op_table = self.conn.Table(op[0])
-      while True:
-        if 'Item' in op_table.get_item(Key={op[1]: str(op[2])}, AttributesToGet=[op[1]]):
-          break
+      # -- Option 2 : Strong read
+      r = post_table.get_item(Key={'k': k}, AttributesToGet=['k'], ConsistentRead=True)
+      found = ('Item' in r)
+
+      # -- Option 3: Implement version keys and read the key and version
+      # https://aws.amazon.com/blogs/database/implementing-version-control-using-amazon-dynamodb/
+      #
+
+      if found: break
+
+def read_post(k):
+  post_table = _conn('reader').Table(DYNAMO_ANTIPODE_TABLE)
+  # read key of post
+  r = post_table.get_item(Key={'k': k}, AttributesToGet=['k'])
+  return ('Item' in r)

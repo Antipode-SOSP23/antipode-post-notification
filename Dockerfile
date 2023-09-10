@@ -1,5 +1,5 @@
-FROM debian:10-slim
-LABEL maintainer="jfloff@inesc-id.pt"
+FROM --platform=linux/amd64 python:3.8-slim-bullseye
+LABEL maintainer="jfloff@dpss.inesc-id.pt"
 
 RUN set -ex ;\
     apt-get update ;\
@@ -8,11 +8,8 @@ RUN set -ex ;\
         git \
         groff \
         activemq \
-        # python
-        python3 \
-        python3-dev \
-        python3-pip \
         # some command line utils
+        less \
         tree \
         vim \
         curl \
@@ -54,27 +51,11 @@ RUN set -ex ;\
 # Python
 #--------------
 ENV PATH="/root/.local/bin:${PATH}"
+COPY requirements.txt /tmp
 RUN set -ex ;\
-    ln -s /usr/bin/python3 /usr/bin/python ;\
-    ln -s /usr/bin/pip3 /usr/bin/pip ;\
-    pip install --user --upgrade --no-cache-dir \
-        setuptools \
-        pip \
-        ;\
-    pip install --user --upgrade --no-cache-dir \
-        pyyaml \
-        pandas \
-        pymysql \
-        boto3 \
-        plumbum \
-        jinja2 \
-        tqdm \
-        click \
-        matplotlib \
-        seaborn \
-        grpcio \
-        grpcio-tools \
-        ;\
+    python -m pip install --upgrade pip ;\
+    cd /tmp ;\
+    pip install --user --upgrade --no-cache-dir -r requirements.txt ;\
     # make sure nothing is on pip cache folder
     rm -rf ~/.cache/pip/
 

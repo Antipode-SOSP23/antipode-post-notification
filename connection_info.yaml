@@ -6,19 +6,19 @@ lambda:
   network:
     eu-central-1:
       # cidr: 50.0.0.0/16
-      vpc_id: vpc-046ebde198e614a9f
-      subnet_id: subnet-0392ab5735b5a96bb # 2
-      security_group_id: sg-06e89d1eec9546ab5
+      vpc_id: vpc-02d0c0a1247e1be3d
+      subnet_id: subnet-0a2fff52234657ee2 # `a`AZ
+      security_group_id: sg-015e60e7da85c5e09
     us-east-1:
       # cidr: 51.0.0.0/16
-      vpc_id: vpc-0a5ac82ccd60ed313
-      subnet_id: subnet-0ec25eaeb81642e55
-      security_group_id: sg-0747aa4724f69efdd
+      vpc_id: vpc-0fb99ef810e2e0169
+      subnet_id: subnet-045e8a859e64622d7 # `a`AZ
+      security_group_id: sg-064e21c99b4e03b86
     ap-southeast-1:
       # cidr: 52.0.0.0/16
-      vpc_id: vpc-0ca0303d82a35a37b
-      subnet_id: subnet-00fe19722cde6a391
-      security_group_id: sg-0e09fa469362f52d2
+      vpc_id: vpc-06e0859f894b12cd3
+      subnet_id: subnet-0e875f312fed07247 # `a`AZ
+      security_group_id: sg-0a333b96e21577906
   s3_buckets:
     eu-central-1: antipode-lambda-eu-rendezvous
     us-east-1: antipode-lambda-us-rendezvous
@@ -41,8 +41,7 @@ datastores:
     db: antipode
     post_table_name: blobs
     notifications_table_name: keyvalue
-    antipode_table: cscopes
-    rendezvous_table: rendezvous
+    antipode_table_name: blobs-antipode
     # writer eu
     host__eu-central-1__writer: antipode-lambda-eu.cluster-cowdztysvhul.eu-central-1.rds.amazonaws.com
     # reader us
@@ -52,10 +51,9 @@ datastores:
   dynamo:
     vpc_required: false
     # common
-    post_table_name: blobs
-    notifications_table_name: keyvalue
-    antipode_table: cscopes
-    rendezvous_table: rendezvous
+    post_table_name: blobs # PK: k
+    notifications_table_name: keyvalue # PK: k
+    antipode_table: keyvalue-antipode # PK: key // SK: context_id
     # reader us
     notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:851889773113:table/keyvalue/stream/2023-07-05T16:16:02.535
     # reader sg
@@ -67,7 +65,6 @@ datastores:
   s3:
     vpc_required: false
     # common
-    antipode_path: antipode
     rendezvous_path: rendezvous
     # writer eu
     bucket__eu-central-1__writer: antipode-lambda-posts-eu-rendezvous
