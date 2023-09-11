@@ -61,11 +61,22 @@ def plot__write_post_overhead(config):
         'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
         # KEEP THIS ORDER -- otherwise plot will get wrong order as well
         'Original': [],
+        'Antipode': [], # init Antipode and Original with array due to multiple rounds
         'Rendezvous': [], # init Rendezvous and Original with array due to multiple rounds
       }
     
-    # find out if rendezvous is enabled
-    run_type = 'Rendezvous' if traces_tags['RENDEZVOUS_ENABLED'] else 'Original'
+    # find out if antipode is enabled
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'Antipode'
+    elif traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'Rendezvous'
+    else:
+      run_type = 'Original'
+
+    # set app type to either Antipode or Rendezvous
+    if run_type != 'Original':
+      app_type = run_type
+
     # ----------------
     # new eval version
     # ----------------
@@ -92,7 +103,7 @@ def plot__write_post_overhead(config):
 
   for _,e in data.items():
     # NOTE: used mean for rendezvous evaluation
-    e['Rendezvous'] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e['Rendezvous'] ]), 50))
+    e[app_type] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e[app_type] ]), 50))
     e['Original'] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e['Original'] ]), 50))
 
   data = list(data.values())
@@ -100,11 +111,10 @@ def plot__write_post_overhead(config):
   # for each Original / Rendezvous pair we take the Original out of rendezvous so
   # stacked bars are presented correctly
   for d in data:
-    d['Rendezvous'] = max(0, d['Rendezvous'] - d['Original'])
+    d[app_type] = max(0, d[app_type] - d['Original'])
 
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
-  pp(df)
   ax = df.plot(kind='bar', stacked=True, logy=False)
   ax.set_ylim(1, 1450)
   plt.xticks(rotation = 0)
@@ -160,15 +170,25 @@ def plot__consistency_window(config):
         # KEEP THIS ORDER -- otherwise plot will get wrong order as well
         'Original': [],
         'Antipode': [], # init Antipode and Original with array due to multiple rounds
+        'Rendezvous': [], # init Antipode and Original with array due to multiple rounds
       }
 
     # find out if antipode is enabled
-    run_type = 'Antipode' if traces_tags['ANTIPODE_ENABLED'] else 'Original'
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'Antipode'
+    elif traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'Rendezvous'
+    else:
+      run_type = 'Original'
+      
+    # set app type to either Antipode or Rendezvous
+    if run_type != 'Original':
+      app_type = run_type
 
     data[post_storage][run_type].append(pd.read_csv(traces_filepath,sep=';',index_col=0))
 
   for _,e in data.items():
-    e['Antipode'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Antipode'] ]), 50))
+    e[app_type] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e[app_type] ]), 50))
     e['Original'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Original'] ]), 50))
 
   data = list(data.values())
@@ -176,7 +196,7 @@ def plot__consistency_window(config):
   # for each Original / Antipode pair we take the Original out of antipode so
   # stacked bars are presented correctly
   for d in data:
-    d['Antipode'] = max(0, d['Antipode'] - d['Original'])
+    d[app_type] = max(0, d[app_type] - d['Original'])
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
   log = True
