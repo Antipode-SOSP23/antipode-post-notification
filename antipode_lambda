@@ -232,7 +232,6 @@ def _build_service(role, args):
   # copy rendezvous if its enabled
   if args['rendezvous']:
     shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / f"rendezvous_{args['post_storage']}.py", deploy_dir)
-    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'rendezvous_shim.py', deploy_dir)
     shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'rendezvous.py', deploy_dir)
     # copy auto-generated protobuf files 
     for filename in ['rendezvous_pb2_grpc.py', 'rendezvous_pb2.py', 'rendezvous_pb2.pyi']:
@@ -585,9 +584,6 @@ def clean__dynamo():
       DYNAMO_CONN['notifications_table_name'],
       DYNAMO_CONN['antipode_table']
     ]
-
-    if _get_last('rendezvous_enabled'):
-      table_names.append(DYNAMO_CONN['rendezvous_table'])
 
     for table_name in table_names:
       table = resource_dynamo.Table(table_name)

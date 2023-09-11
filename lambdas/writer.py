@@ -25,8 +25,8 @@ if ANTIPODE:
   write_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'write_post')
   import antipode_core # import after importing module due to wait_registry
 elif RENDEZVOUS:
-  #TODO move write method to rendezvous shim
   write_post = getattr(importlib.import_module(f"rendezvous_{POST_STORAGE}"), 'write_post')
+  import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 else:
   write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
 
@@ -49,7 +49,6 @@ def lambda_handler(event, context):
     return { 'statusCode': 200, 'body': event }
 
   if RENDEZVOUS:
-    import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
     rid = context.aws_request_id
 
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
@@ -78,7 +77,7 @@ def lambda_handler(event, context):
     wid = write_post(k=event['key'], c=context)
     antipode_core.append_operation(context, 'post-storage', wid)
   elif RENDEZVOUS:
-    write_post(i=event['i'], k=event['key'], bid=bid)
+    write_post(k=event['key'], m=bid)
   else:
     write_post(k=event['key'])
 
