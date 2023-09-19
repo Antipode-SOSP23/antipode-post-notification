@@ -359,6 +359,13 @@ In your new config file, provide the gather paths in `storage_overhead`. Change 
 ./plot plots/configs/sample.yml --plots storage_overhead
 ```
 
+#### Write Post Operation Duration Overhead
+
+In your new config file, provide the gather paths in `write_post_overhead`. Change the combinations as needed and build the plot:
+```zsh
+./plot plots/configs/sample.yml --plots write_post_overhead
+```
+
 
 ## Paper References
 João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues\
