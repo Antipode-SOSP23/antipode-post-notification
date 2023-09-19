@@ -26,7 +26,7 @@ if ANTIPODE:
   import antipode_core # import after importing module due to wait_registry
 elif RENDEZVOUS:
   write_post = getattr(importlib.import_module(f"rendezvous_{POST_STORAGE}"), 'write_post')
-  import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
+  import rendezvous, rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 else:
   write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
 
@@ -59,9 +59,12 @@ def lambda_handler(event, context):
         rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.RegisterBranch(request)
         rendezvous_end_ts = datetime.utcnow().timestamp()
-        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
-        event['rid'] = rid
         bid = response.bid
+        event['rid'] = rid
+        # convert context from protobuf message to string
+        event['rdv_ctx'] = rendezvous.context_msg_to_string(response.context)
+        # eval
+        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
 
       except grpc.RpcError as e:
         print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")

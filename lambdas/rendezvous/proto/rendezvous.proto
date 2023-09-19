@@ -11,14 +11,14 @@ service ClientService {
   rpc RegisterBranchesDatastores(RegisterBranchesDatastoresMessage) returns (RegisterBranchesDatastoresResponse);
   rpc CloseBranch(CloseBranchMessage) returns (Empty);
   rpc WaitRequest(WaitRequestMessage) returns (WaitRequestResponse);
-  rpc CheckRequest(CheckRequestMessage) returns (CheckRequestResponse);
-  rpc CheckRequestByRegions(CheckRequestByRegionsMessage) returns (CheckRequestByRegionsResponse);
+  rpc CheckStatus(CheckStatusMessage) returns (CheckStatusResponse);
+  rpc FetchDependencies(FetchDependenciesMessage) returns (FetchDependenciesResponse);
 }
 
 /* Helpers */
 enum RequestStatus {
-  OPENED = 0;
-  CLOSED = 1;
+  CLOSED = 0;
+  OPENED = 1;
   UNKNOWN = 2;
 }
 message Empty {
@@ -27,7 +27,8 @@ message Empty {
 
 /* Metadata for server replication */
 message RequestContext {
-  map<string, int32> versions = 1;
+  string prev_service = 1;
+  map<string, int32> versions = 2;
 }
 
 /* Publish-Subscribe */
@@ -92,13 +93,14 @@ message CloseBranchMessage {
   RequestContext context = 4;
 }
 
-/* Wait Request */
+/* Wait */
 message WaitRequestMessage {
   string rid = 1;
   string service = 2;
-  string region = 3;
-  string tag = 4;
-  int32 timeout = 5;
+  repeated string services = 3;
+  string region = 4;
+  string tag = 5;
+  int32 timeout = 6;
   //bool async = 6;
   RequestContext context = 7;
 }
@@ -107,25 +109,28 @@ message WaitRequestResponse {
   bool timed_out = 2;
 }
 
-/* Check Request */
-message CheckRequestMessage {
+/* Check Status */
+message CheckStatusMessage {
   string rid = 1;
   string service = 2;
   string region = 3;
   bool detailed = 4;
   RequestContext context = 5;
 }
-message CheckRequestResponse {
+
+message CheckStatusResponse {
   RequestStatus status = 1;
-  map<string, RequestStatus> detailed = 2;
+  map<string, RequestStatus> tagged = 2;
+  map<string, RequestStatus> regions = 3;
 }
 
-/* Check Request by Regions */
-message CheckRequestByRegionsMessage {
+/* Check Dependencies */
+message FetchDependenciesMessage {
   string rid = 1;
   string service = 2;
-  RequestContext context = 3;
+  RequestContext context = 4;
 }
-message CheckRequestByRegionsResponse {
-  map<string, RequestStatus> status = 1;
+
+message FetchDependenciesResponse {
+  repeated string dependencies = 1;
 }

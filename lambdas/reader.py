@@ -28,6 +28,8 @@ parse_event = getattr(importlib.import_module(NOTIFICATION_STORAGE), 'parse_even
 if ANTIPODE:
   read_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'read_post')
   import antipode_core
+elif RENDEZVOUS:
+  import rendezvous, rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 else:
   read_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'read_post')
 
@@ -76,14 +78,14 @@ def lambda_handler(event, context):
 
   if RENDEZVOUS:
     rid = event['rid']
-
-    import rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
+    # convert context from string to protobuf message
+    rdv_ctx = rendezvous.context_string_to_msg(event['rdv_ctx'])
 
     with grpc.insecure_channel(_rendezvous_address('reader')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         # set timeout to 300 seconds as a sanity check for the replication delay of S3
-        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), timeout=300)
+        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), context=rdv_ctx, timeout=300)
         rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.WaitRequest(request)
         rendezvous_end_ts = datetime.utcnow().timestamp()
