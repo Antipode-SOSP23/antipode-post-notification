@@ -50,19 +50,22 @@ def lambda_handler(event, context):
 
   if RENDEZVOUS:
     rid = context.aws_request_id
+    zones = rendezvous.next_async_zones(num = 2)
 
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         regions = [_region('writer'), _region('reader')]
-        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', monitor=True)
+        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', async_zone=zones[0], monitor=True)
         rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.RegisterBranch(request)
         rendezvous_end_ts = datetime.utcnow().timestamp()
         bid = response.bid
         event['rid'] = rid
-        # convert context from protobuf message to string
-        event['rdv_ctx'] = rendezvous.context_msg_to_string(response.context)
+        # although we do no open a branch for the notification
+        # we need the async zone for a correct wait call
+        event['rv_zone'] = zones[1]
+        event['rv_zone_i'] = 0
         # eval
         event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
 

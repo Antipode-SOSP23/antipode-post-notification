@@ -42,10 +42,6 @@ def plot__write_post_overhead(config):
   data = {}
   for gather_path in config['gather_paths']:
     traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
-
-    # ----------------
-    # new eval version
-    # ----------------
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
     # skip paths not from sns
@@ -77,32 +73,9 @@ def plot__write_post_overhead(config):
     if run_type != 'Original':
       app_type = run_type
 
-    # ----------------
-    # new eval version
-    # ----------------
-
-    # ----------------
-    # old eval version
-    # ----------------
-    """ post_storage , _ = traces_filepath.parts[-3].split('-')
-
-    if post_storage not in data:
-      data[post_storage] = {
-        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
-        # KEEP THIS ORDER -- otherwise plot will get wrong order as well
-        'Original': [],
-        'Rendezvous': [], # init Rendezvous and Original with array due to multiple rounds
-      }
-
-    run_type = 'Rendezvous' if 'rendezvous' in traces_filepath.parts[-2] else 'Original' """
-    # ----------------
-    # old eval version
-    # ----------------
-
     data[post_storage][run_type].append(pd.read_csv(traces_filepath,sep=';',index_col=0))
 
   for _,e in data.items():
-    # NOTE: used mean for rendezvous evaluation
     e[app_type] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e[app_type] ]), 50))
     e['Original'] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e['Original'] ]), 50))
 
@@ -199,6 +172,7 @@ def plot__consistency_window(config):
     d[app_type] = max(0, d[app_type] - d['Original'])
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
+  pp(df)
   log = True
   if log:
     ax = df.plot(kind='bar', stacked=True, logy=True)
@@ -348,8 +322,34 @@ def plot__storage_overhead(config):
   df = pd.DataFrame.from_records(list(data.values())).set_index('storage')
   pp(df)
 
+def plot__prevented_inconsistencies(config):
+  data = {
+    'rendezvous': {},
+    'baseline': {}
+  }
+
+  for gather_path in config['gather_paths']:
+    traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
+
+    if traces_tags['RENDEZVOUS_ENABLED']:
+      post_storage = traces_tags['POST_STORAGE']
+      data['rendezvous'][post_storage] = traces_tags['%_PREVENTED_INCONSISTENCIES']
+    else:
+      post_storage = traces_tags['POST_STORAGE']
+      data['baseline'][post_storage] = traces_tags['%_INCONSISTENCIES']
+
+  # rendezvous
+  df = pd.DataFrame(list(data['rendezvous'].items()), columns=['storage', '% prevented inconsistencies'])
+  print("> Rendezvous:")
+  pp(df)
+
+  # baseline
+  df = pd.DataFrame(list(data['baseline'].items()), columns=['storage', '% inconsistencies'])
+  print("> Baseline:")
+  pp(df)
+
 #--------------
-# CONSTANTS
+# CONSTANTS#
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 PLOTS_PATH = ROOT_PATH / 'plots'

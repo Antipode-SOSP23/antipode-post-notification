@@ -27,8 +27,8 @@ lambda:
 # must provide PRIVATE ip address with SAME VPC when using storages
 # that require vpc enabled (e.g. caache)
 rendezvous:
-  eu-central-1: 3.127.38.100:8001
-  us-east-1: 3.82.192.71:8002
+  eu-central-1: 18.185.131.39:8001
+  us-east-1: 34.238.85.154:8002
   ap-southeast-1: n/a
 
 datastores:
@@ -42,6 +42,7 @@ datastores:
     post_table_name: blobs
     notifications_table_name: keyvalue
     antipode_table_name: blobs-antipode
+    rendezvous_table_name: blobs-rendezvous
     # writer eu
     host__eu-central-1__writer: antipode-lambda-eu.cluster-cowdztysvhul.eu-central-1.rds.amazonaws.com
     # reader us
@@ -54,6 +55,7 @@ datastores:
     post_table_name: blobs # PK: k
     notifications_table_name: keyvalue # PK: k
     antipode_table: keyvalue-antipode # PK: key // SK: context_id
+    rendezvous_table: blobs-rendezvous # PK: k // GSI: rv_bid
     # reader us
     notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:851889773113:table/keyvalue/stream/2023-07-05T16:16:02.535
     # reader sg
@@ -99,9 +101,9 @@ datastores:
     port: 6379
     rendezvous_prefix: rendezvous
     # writer eu
-    host__eu-central-1__writer: antipode-lambda-eu-001.gwkjt4.0001.euc1.cache.amazonaws.com
+    host__eu-central-1__writer: antipode-lambda-eu.gwkjt4.ng.0001.euc1.cache.amazonaws.com
     # reader us
-    host__us-east-1__reader: antipode-lambda-us-001.7jax8t.0001.use1.cache.amazonaws.com
+    host__us-east-1__reader: antipode-lambda-us.7jax8t.ng.0001.use1.cache.amazonaws.com
     # reader sg
     host__ap-southeast-1__reader: antipode-lambda-sg.qynev5.ng.0001.apse1.cache.amazonaws.com
 

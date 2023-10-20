@@ -509,31 +509,14 @@ def clean__mysql():
       exit(-1)
 
     # Create tables
-    if _get_last('rendezvous_enabled'):
-      sql = f"""
-      CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
-        k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
-        b LONGBLOB NOT NULL,
-        rdv_bid VARCHAR(255),
-        PRIMARY KEY (k)
-      )"""
-      cursor.execute(sql)
-      mysql_conn.commit()
-    else:
-      sql = f"""
-      CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
-        k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
-        b LONGBLOB NOT NULL,
-        PRIMARY KEY (k)
-      )"""
-      cursor.execute(sql)
-      mysql_conn.commit()
-
-    if _get_last('rendezvous_enabled'):
-      sql = f"CREATE INDEX rdv_bid_index ON {MYSQL_CONN['post_table_name']} (rdv_bid)"
-      cursor.execute(sql)
-      mysql_conn.commit()
-
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['post_table_name']}` (
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      b LONGBLOB NOT NULL,
+      PRIMARY KEY (k)
+    )"""
+    cursor.execute(sql)
+    mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['post_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
@@ -547,6 +530,20 @@ def clean__mysql():
     cursor.execute(sql)
     mysql_conn.commit()
     sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['notifications_table_name']}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['rendezvous_table_name']}` (
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      b LONGBLOB NOT NULL,
+      rv_bid VARCHAR(255) NOT NULL,
+      PRIMARY KEY (k),
+      INDEX (rv_bid)
+    )"""
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table_name']}`"
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
@@ -582,7 +579,8 @@ def clean__dynamo():
     table_names = [
       DYNAMO_CONN['post_table_name'],
       DYNAMO_CONN['notifications_table_name'],
-      DYNAMO_CONN['antipode_table']
+      DYNAMO_CONN['antipode_table'],
+      DYNAMO_CONN['rendezvous_table']
     ]
 
     for table_name in table_names:
@@ -1009,7 +1007,16 @@ def gather_stats__dynamo():
   # Hence, we used this calculator in an item with and without antipode
   # https://zaccharles.github.io/dynamodb-calculator/
   # and we got to these values
+  if _get_last('antipode_enabled'):
+    single_item_size = 350054
+  elif _get_last('rendezvous_enabled'):
+    #TODO RENDEZVOUS
+    single_item_size = 350054
+  else:
+    single_item_size = 350012
+
   single_item_size = 350054 if _get_last('antipode_enabled') else 350012
+  single_item_size = 350054 if _get_last('rendezvous_enabled') else 350012
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -1019,7 +1026,12 @@ def gather_stats__s3():
   # S3 size is fixed and key does not change the object size
   # (1000) from object
   # (320) from Antipode's metadata
-  single_item_size = 1000000 + (320 if _get_last('antipode_enabled') else 0)
+  single_item_size = 1000000
+  if _get_last('antipode_enabled'):
+    single_item_size += 320
+  elif _get_last('rendezvous_enabled'):
+    #TODO RENDEZVOUS
+    single_item_size += 320
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -1031,7 +1043,12 @@ def gather_stats__mysql():
 
   MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
   writer_region = _get_last('writer_region')
-  table_name = MYSQL_CONN['antipode_table_name'] if _get_last('antipode_enabled') else MYSQL_CONN['post_table_name']
+  if _get_last('antipode_enabled'):
+    table_name = MYSQL_CONN['antipode_table_name']
+  elif _get_last('rendezvous_enabled'):
+    table_name = MYSQL_CONN['rendezvous_table_name']
+  else:
+    table_name = MYSQL_CONN['post_table_name']
 
   mysql_conn = pymysql.connect(
       host=MYSQL_CONN[f"host__{writer_region}__writer"],
@@ -1144,7 +1161,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
-  build_parser.add_argument('-rdv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
+  build_parser.add_argument('-rv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application

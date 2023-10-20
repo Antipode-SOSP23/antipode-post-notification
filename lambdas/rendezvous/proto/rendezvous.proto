@@ -8,7 +8,7 @@ service ClientService {
   /* Unary RPCs */
   rpc RegisterRequest(RegisterRequestMessage) returns (RegisterRequestResponse);
   rpc RegisterBranch(RegisterBranchMessage) returns (RegisterBranchResponse);
-  rpc RegisterBranchesDatastores(RegisterBranchesDatastoresMessage) returns (RegisterBranchesDatastoresResponse);
+  rpc RegisterBranches(RegisterBranchesMessage) returns (RegisterBranchesResponse);
   rpc CloseBranch(CloseBranchMessage) returns (Empty);
   rpc WaitRequest(WaitRequestMessage) returns (WaitRequestResponse);
   rpc CheckStatus(CheckStatusMessage) returns (CheckStatusResponse);
@@ -27,8 +27,9 @@ message Empty {
 
 /* Metadata for server replication */
 message RequestContext {
-  string prev_service = 1;
-  map<string, int32> versions = 2;
+  string current_service = 1;
+  string async_zone = 2;
+  int32 num_sub_zones = 3;
 }
 
 /* Publish-Subscribe */
@@ -47,22 +48,36 @@ message RegisterRequestMessage {
 }
 message RegisterRequestResponse {
   string rid = 1;
-  RequestContext context = 2;
 }
 
-/* Registers Branches */
+/* Registers Branch */
 message RegisterBranchMessage {
   string rid = 1;
-  string service = 2;
-  string tag = 3;
-  repeated string regions = 4;
-  bool monitor = 5;
-  RequestContext context = 6;
+  string bid = 2;
+  string service = 3;
+  string tag = 4;
+  repeated string regions = 5;
+  bool monitor = 6;
+  string async_zone = 7;
+  string current_service = 8;
 }
 message RegisterBranchResponse {
   string rid = 1;
   string bid = 2;
-  RequestContext context = 3;
+}
+
+/* Registers Branches */
+message RegisterBranchesMessage {
+  string rid = 1;
+  repeated string services = 2;
+  repeated string tags = 3;
+  string region = 4;
+  string async_zone = 5;
+  string current_service = 6;
+}
+message RegisterBranchesResponse {
+  string rid = 1;
+  repeated string bids = 2;
 }
 
 /* Register Branches - SERVERLESS VERSION */
@@ -71,26 +86,12 @@ message DatastoreBranching {
   string tag = 2;
   repeated string regions = 3;
 }
-message RegisterBranchesDatastoresMessage {
-  string rid = 1;
-  repeated string datastores = 2;
-  repeated string regions = 3;
-  repeated string tags = 4;
-  repeated DatastoreBranching branches = 5;
-  RequestContext context = 6;
-}
-message RegisterBranchesDatastoresResponse {
-  string rid = 1;
-  repeated string bids = 2;
-  RequestContext context = 3;
-}
 
 /* Close Branch */
 message CloseBranchMessage {
   string bid = 1;
   string region = 2;
-  bool force = 3;
-  RequestContext context = 4;
+  repeated string visible_bids = 3;
 }
 
 /* Wait */
@@ -101,8 +102,9 @@ message WaitRequestMessage {
   string region = 4;
   string tag = 5;
   int32 timeout = 6;
-  //bool async = 6;
-  RequestContext context = 7;
+  bool wait_deps = 7;
+  string current_service = 8;
+  string async_zone = 9;
 }
 message WaitRequestResponse {
   bool prevented_inconsistency = 1;
@@ -115,7 +117,7 @@ message CheckStatusMessage {
   string service = 2;
   string region = 3;
   bool detailed = 4;
-  RequestContext context = 5;
+  string async_zone = 5;
 }
 
 message CheckStatusResponse {
@@ -128,9 +130,10 @@ message CheckStatusResponse {
 message FetchDependenciesMessage {
   string rid = 1;
   string service = 2;
-  RequestContext context = 4;
+  string async_zone = 3;
 }
 
 message FetchDependenciesResponse {
-  repeated string dependencies = 1;
+  repeated string deps = 1;
+  repeated string indirect_deps = 2;
 }

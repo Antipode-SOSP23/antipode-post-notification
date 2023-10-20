@@ -67,7 +67,6 @@ def parse_event(event):
       }
       if RENDEZVOUS:
         event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
-        event['rdv_ctx'] = dynamo_event['dynamodb']['NewImage']['rdv_ctx']['S']
         # for evaluation
         event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
       event['context'] = dynamo_event['dynamodb']['NewImage']['context']['S']

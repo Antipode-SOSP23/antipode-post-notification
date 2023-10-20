@@ -24,3 +24,7 @@ def write_post(k, m):
   # set rendezvous value as 1 to minimize memory used
   pipe.set(_cache_key_rendezvous(m), 1, ex=RENDEZVOUS_METADATA_VALIDITY_S)
   pipe.execute()
+
+def read_post(k):
+  r = _conn('reader')
+  return bool(r.exists(k))
