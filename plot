@@ -64,7 +64,8 @@ def plot__write_post_overhead(config):
     # find out if antipode is enabled
     if traces_tags['ANTIPODE_ENABLED']:
       run_type = 'Antipode'
-    elif traces_tags['RENDEZVOUS_ENABLED']:
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
       run_type = 'Rendezvous'
     else:
       run_type = 'Original'
@@ -143,13 +144,14 @@ def plot__consistency_window(config):
         # KEEP THIS ORDER -- otherwise plot will get wrong order as well
         'Original': [],
         'Antipode': [], # init Antipode and Original with array due to multiple rounds
-        'Rendezvous': [], # init Antipode and Original with array due to multiple rounds
+        'Rendezvous': [],
       }
 
     # find out if antipode is enabled
     if traces_tags['ANTIPODE_ENABLED']:
       run_type = 'Antipode'
-    elif traces_tags['RENDEZVOUS_ENABLED']:
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
       run_type = 'Rendezvous'
     else:
       run_type = 'Original'
@@ -272,11 +274,20 @@ def plot__delay_vs_per_inconsistencies(config):
 
 def plot__storage_overhead(config):
   data = {}
+  app_type = None
   for gather_path in config['gather_paths']:
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
     # find out if antipode is enabled
-    run_type = 'antipode' if traces_tags['ANTIPODE_ENABLED'] else 'baseline'
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'app'
+      app_type = 'antipode'
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'app'
+      app_type = 'rendezvous'
+    else:
+      run_type = 'baseline'
 
     post_storage = traces_tags['POST_STORAGE']
     notification_storage = traces_tags['NOTIFICATION_STORAGE']
@@ -287,9 +298,9 @@ def plot__storage_overhead(config):
         'storage': post_storage,
         # init Antipode and Original with array due to multiple rounds
         'baseline_total': [],
-        'antipode_total': [],
+        'app_total': [],
         'baseline_avg': [],
-        'antipode_avg': [],
+        'app_avg': [],
       }
     data[post_storage][f"{run_type}_total"].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
     data[post_storage][f"{run_type}_avg"].append(traces_tags['AVG_POST_STORAGE_SIZE_BYTES'])
@@ -300,9 +311,9 @@ def plot__storage_overhead(config):
         'storage': notification_storage,
         # init Antipode and Original with array due to multiple rounds
         'baseline_total': [],
-        'antipode_total': [],
+        'app_total': [],
         'baseline_avg': [],
-        'antipode_avg': [],
+        'app_avg': [],
       }
     data[notification_storage][f"{run_type}_total"].append(traces_tags['TOTAL_NOTIFICATION_SIZE_BYTES'])
     data[notification_storage][f"{run_type}_avg"].append(traces_tags['AVG_NOTIFICATION_SIZE_BYTES'])
@@ -310,16 +321,20 @@ def plot__storage_overhead(config):
   # pick median from all storage overheads and do the overhead percentage
   for _,e in data.items():
     e['baseline_total'] = round(np.percentile(e['baseline_total'], 50))
-    e['antipode_total'] = round(np.percentile(e['antipode_total'], 50))
-    e['overhead_total'] = e['antipode_total'] - e['baseline_total']
+    e['app_total'] = round(np.percentile(e['app_total'], 50))
+    e['overhead_total'] = e['app_total'] - e['baseline_total']
     e['por_overhead_total'] = (e['overhead_total'] / e['baseline_total'])*100
     #
     e['baseline_avg'] = round(np.percentile(e['baseline_avg'], 50))
-    e['antipode_avg'] = round(np.percentile(e['antipode_avg'], 50))
-    e['overhead_avg'] = e['antipode_avg'] - e['baseline_avg']
+    e['app_avg'] = round(np.percentile(e['app_avg'], 50))
+    e['overhead_avg'] = e['app_avg'] - e['baseline_avg']
     e['por_overhead_avg'] = (e['overhead_avg'] / e['baseline_avg'])*100
 
   df = pd.DataFrame.from_records(list(data.values())).set_index('storage')
+  if app_type == 'antipode':
+    df.columns = df.columns.str.replace('app', 'antipode')
+  else:
+    df.columns = df.columns.str.replace('app', 'rendezvous')  
   pp(df)
 
 def plot__prevented_inconsistencies(config):
@@ -331,7 +346,8 @@ def plot__prevented_inconsistencies(config):
   for gather_path in config['gather_paths']:
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
-    if traces_tags['RENDEZVOUS_ENABLED']:
+    # prevent any errors if rendezvous flag does not exist in old eval
+    if 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
       post_storage = traces_tags['POST_STORAGE']
       data['rendezvous'][post_storage] = traces_tags['%_PREVENTED_INCONSISTENCIES']
     else:

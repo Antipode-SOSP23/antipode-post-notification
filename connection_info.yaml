@@ -27,8 +27,8 @@ lambda:
 # must provide PRIVATE ip address with SAME VPC when using storages
 # that require vpc enabled (e.g. caache)
 rendezvous:
-  eu-central-1: 18.185.131.39:8001
-  us-east-1: 34.238.85.154:8002
+  eu-central-1: 18.153.73.84:8001
+  us-east-1: 52.90.115.7:8002
   ap-southeast-1: n/a
 
 datastores:

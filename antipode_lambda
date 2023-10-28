@@ -294,6 +294,7 @@ def build(args):
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
   _put_last('rendezvous_enabled', args['rendezvous'])
+  _put_last('rendezvous_ncc', args['no_consistency_checks'])
   _put_last('delay', args['delay'])
   _put_last('post_storage', args['post_storage'])
   _put_last('notification_storage', args['notification_storage'])
@@ -811,6 +812,7 @@ def gather(args):
   notification_storage = _get_last('notification_storage')
   antipode_enabled = _get_last('antipode_enabled')
   rendezvous_enabled = _get_last('rendezvous_enabled')
+  rendezvous_ncc = _get_last('rendezvous_ncc')
   num_requests = _get_last('requests')
   delay = _get_last('delay')
   latencies = _get_last('latencies')
@@ -912,7 +914,10 @@ def gather(args):
     if antipode_enabled:
       args['tag'] = 'antipode__' + args['tag']
     if rendezvous_enabled:
-      args['tag'] = 'rendezvous__' + args['tag']
+      if rendezvous_ncc:
+        args['tag'] = 'rendezvous_ncc__' + args['tag']
+      else:
+        args['tag'] = 'rendezvous__' + args['tag']
 
   # now we compute date over the global results and tidy up dict for dataframe
   eval_values = results.values()
@@ -969,6 +974,7 @@ def gather(args):
     'NOTIFICATION_STORAGE': notification_storage,
     'ANTIPODE_ENABLED': antipode_enabled,
     'RENDEZVOUS_ENABLED': rendezvous_enabled,
+    'RENDEZVOUS_NCC': rendezvous_ncc,
     'DELAY': delay,
     'READER_REGION': reader_region,
     'WRITER_REGION': writer_region,
@@ -1010,13 +1016,9 @@ def gather_stats__dynamo():
   if _get_last('antipode_enabled'):
     single_item_size = 350054
   elif _get_last('rendezvous_enabled'):
-    #TODO RENDEZVOUS
-    single_item_size = 350054
+    single_item_size = 350062
   else:
     single_item_size = 350012
-
-  single_item_size = 350054 if _get_last('antipode_enabled') else 350012
-  single_item_size = 350054 if _get_last('rendezvous_enabled') else 350012
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -1024,14 +1026,14 @@ def gather_stats__dynamo():
 
 def gather_stats__s3():
   # S3 size is fixed and key does not change the object size
-  # (1000) from object
+  # (1000 KB) from object
   # (320) from Antipode's metadata
+  # (10) from Rendezvous's metadata
   single_item_size = 1000000
   if _get_last('antipode_enabled'):
     single_item_size += 320
   elif _get_last('rendezvous_enabled'):
-    #TODO RENDEZVOUS
-    single_item_size += 320
+    single_item_size += 10
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -1162,6 +1164,7 @@ if __name__ == '__main__':
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
   build_parser.add_argument('-rv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
+  build_parser.add_argument('-ncc', '--no-consistency-checks', action='store_true', help="Disables rendezvous consistency checks")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application

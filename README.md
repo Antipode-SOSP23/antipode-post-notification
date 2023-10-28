@@ -113,7 +113,7 @@ Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonR
     - For credentials you can use the following:
         - Master Username: `antipode`
         - Master Password: `antipode`
-    - Select a memory optimized machine (e.g. `db.r6.large`). You can tick `Include previous generations` for older and cheaper instances.
+    - Select a memory optimized machine (e.g. `db.r6g.large`). You can tick `Include previous generations` for older and cheaper instances.
     - Do not create Multi-AZ deployment
     - Choose the `Default VPC`. _Warning_: do not try to change the `antipode-mq` VPC to support RDS by adding more subnets -- use a different one.
     - Enable `Public access`
@@ -134,7 +134,7 @@ Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonR
 5. In `Databases`, select the top level entry named `antipode-lambda-eu` with type `Regional cluster`. Click on Actions and `Add AWS region`. You will get to a `Add Region` panel where you can setup the new replica:
     - Global database identifier: `antipode-lambda`
     - Select secondary region, e.g. `US East (N. Virginia)` which would mean that
-    - Select the same model of machine selected in the writer zone (e.g. `db.r6.large`)
+    - Select the same model of machine selected in the writer zone (e.g. `db.r6g.large`)
     - Do not create Multi-AZ deployment
     - Choose the `Default VPC`.
     - Enable `Public access`
