@@ -78,17 +78,17 @@ def lambda_handler(event, context):
     evaluation['antipode_spent_ms'] = int((datetime.utcnow().timestamp() - antipode_start_ts) * 1000)
 
   if RENDEZVOUS:
+    rendezvous_reader_start_ts = datetime.utcnow().timestamp()
     rid = event['rid']
-    rv_zone = event['rv_zone']
+    rv_zone = rendezvous.parse_async_zone(event['rv_zone'])[0]
 
     with grpc.insecure_channel(_rendezvous_address('reader')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         # set timeout to 300 seconds as a sanity check for the replication delay of S3
         request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), async_zone=rv_zone, timeout=300)
-        rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.WaitRequest(request)
-        rendezvous_end_ts = datetime.utcnow().timestamp()
+        rendezvous_reader_end_ts = datetime.utcnow().timestamp()
 
         if response.prevented_inconsistency == 1:
           evaluation['rendezvous_prevented_inconsistency'] = 1
@@ -98,7 +98,7 @@ def lambda_handler(event, context):
           raise
         
         evaluation['rendezvous_call_writer_spent_ms'] = event['rendezvous_call_writer_spent_ms']
-        evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
+        evaluation['rendezvous_call_reader_spent_ms'] = int((rendezvous_reader_end_ts - rendezvous_reader_start_ts) * 1000)
             
       except grpc.RpcError as e:
         print(f"[ERROR] Rendezvous exception waiting request: {e.details()}", flush=True)

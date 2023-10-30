@@ -41,10 +41,11 @@ def write_notification(event):
     'notification_written_at': str(event['notification_written_at']),
   }
   item['context']= event['context']
+
+  # rendezvous eval
+  item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
   if RENDEZVOUS:
     item['rid'] = str(event['rid'])
-    # for evaluation
-    item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
 
   # write the built item
   notifications_table.put_item(Item=item)

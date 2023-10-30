@@ -47,31 +47,33 @@ def lambda_handler(event, context):
     # dynamically call stats
     event['stats'] = getattr(importlib.import_module(f"{POST_STORAGE}"), 'stats')()
     return { 'statusCode': 200, 'body': event }
-
+  
+  # rendezvous eval
   if RENDEZVOUS:
+    rendezvous_writer_start_ts = datetime.utcnow().timestamp()
     rid = context.aws_request_id
-    zones = rendezvous.next_async_zones(num = 2)
+    zones = rendezvous.next_async_zones()
 
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         regions = [_region('writer'), _region('reader')]
         request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', async_zone=zones[0], monitor=True)
-        rendezvous_call_start_ts = datetime.utcnow().timestamp()
         response = stub.RegisterBranch(request)
-        rendezvous_end_ts = datetime.utcnow().timestamp()
+        rendezvous_writer_end_ts = datetime.utcnow().timestamp()
         bid = response.bid
         event['rid'] = rid
-        # although we do no open a branch for the notification
-        # we need the async zone for a correct wait call
-        event['rv_zone'] = zones[1]
-        event['rv_zone_i'] = 0
+        event['rv_zone'] = rendezvous.compose_async_zone(num=1)
         # eval
-        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_end_ts - rendezvous_call_start_ts) * 1000)
+        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_writer_end_ts - rendezvous_writer_start_ts) * 1000)
 
       except grpc.RpcError as e:
         print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
         raise e
+  else:
+    # dummy values (on avg rendezvous spends 300)
+    event['rendezvous_call_writer_spent_ms'] = 300
+
   #------
 
   # init context to emulate tracing infra
