@@ -365,7 +365,7 @@ In your new config file, provide the gather paths in `storage_overhead`. Change 
 João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues\
 Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications\
 To appear.\
-[Paper](Download)
+[Paper](https://dl.acm.org/doi/10.1145/3600006.3613176)
 
 Phillipe Ajoux, Nathan Bronson, Sanjeev Kumar, Wyatt Lloyd, Kaushik Veeraraghavan\
 Challenges to Adopting Stronger Consistency at Scale\
