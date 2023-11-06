@@ -6,26 +6,26 @@ lambda:
   network:
     eu-central-1:
       # cidr: 50.0.0.0/16
-      vpc_id: vpc-087002f6c348d6732
-      subnet_id: subnet-0a9f09e0543af58a1 # `a`AZ
-      security_group_id: sg-0c7b447ccaaeeebed
+      vpc_id: vpc-02d0c0a1247e1be3d
+      subnet_id: subnet-0a2fff52234657ee2 # `a`AZ
+      security_group_id: sg-015e60e7da85c5e09
     us-east-1:
       # cidr: 51.0.0.0/16
-      vpc_id: vpc-0fafe08a650cef8d7
-      subnet_id: subnet-072e8c08afd47fdb7 # `a`AZ
-      security_group_id: sg-052b277efce5e21a6
+      vpc_id: vpc-0fb99ef810e2e0169
+      subnet_id: subnet-045e8a859e64622d7 # `a`AZ
+      security_group_id: sg-064e21c99b4e03b86
     ap-southeast-1:
       # cidr: 52.0.0.0/16
       vpc_id: vpc-06e0859f894b12cd3
       subnet_id: subnet-0e875f312fed07247 # `a`AZ
       security_group_id: sg-0a333b96e21577906
   s3_buckets:
-    eu-central-1: antipode-lambda-eu-rendezvous
-    us-east-1: antipode-lambda-us-rendezvous
-    ap-southeast-1: antipode-lambda-sg-rendezvous
+    eu-central-1: antipode-lambda-eu
+    us-east-1: antipode-lambda-us
+    ap-southeast-1: antipode-lambda-sg
 
-# must provide PRIVATE ip address with SAME VPC when using storages
-# that require vpc enabled (e.g. caache)
+# must provide private ip address within same vpc when using
+# storages that require vpc enabled (e.g. cache)
 rendezvous:
   eu-central-1: 18.153.73.84:8001
   us-east-1: 52.90.115.7:8002
@@ -44,9 +44,9 @@ datastores:
     antipode_table_name: blobs-antipode
     rendezvous_table_name: blobs-rendezvous
     # writer eu
-    host__eu-central-1__writer: antipode-lambda-eu.cluster-cowdztysvhul.eu-central-1.rds.amazonaws.com
+    host__eu-central-1__writer: antipode-lambda-eu.cluster-citztxl8ztvl.eu-central-1.rds.amazonaws.com
     # reader us
-    host__us-east-1__reader: antipode-lambda-us.cluster-ro-cfiggpj8crt2.us-east-1.rds.amazonaws.com
+    host__us-east-1__reader: antipode-lambda-us.cluster-ro-cdwqaw2esdz0.us-east-1.rds.amazonaws.com
     # reader sg
     host__ap-southeast-1__reader: antipode-lambda-sg.cluster-ro-c9trn3kf4qh6.ap-southeast-1.rds.amazonaws.com
   dynamo:
@@ -57,23 +57,22 @@ datastores:
     antipode_table: keyvalue-antipode # PK: key // SK: context_id
     rendezvous_table: blobs-rendezvous # PK: k // GSI: rv_bid
     # reader us
-    notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:851889773113:table/keyvalue/stream/2023-07-05T16:16:02.535
+    notifications_table_stream_arn__us-east-1: arn:aws:dynamodb:us-east-1:641424397462:table/keyvalue/stream/2020-06-15T14:43:13.249
     # reader sg
-    notifications_table_stream_arn__ap-southeast-1: arn:aws:dynamodb:ap-southeast-1:851889773113:table/keyvalue/stream/2023-02-21T22:17:07.053
+    notifications_table_stream_arn__ap-southeast-1: arn:aws:dynamodb:ap-southeast-1:641424397462:table/keyvalue/stream/2021-09-04T16:30:34.717
   sns:
     vpc_required: false
     # writer eu
-    arn__eu-central-1__writer: arn:aws:sns:eu-central-1:851889773113:antipode-lambda-notifications
+    arn__eu-central-1__writer: arn:aws:sns:eu-central-1:641424397462:antipode-lambda-notifications
   s3:
     vpc_required: false
-    # common
     rendezvous_path: rendezvous
     # writer eu
-    bucket__eu-central-1__writer: antipode-lambda-posts-eu-rendezvous
+    bucket__eu-central-1__writer: antipode-lambda-posts-eu
     # reader us
-    bucket__us-east-1__reader: antipode-lambda-posts-us-rendezvous
+    bucket__us-east-1__reader: antipode-lambda-posts-us
     # reader sg
-    bucket__ap-southeast-1__reader: antipode-lambda-posts-sg-rendezvous
+    bucket__ap-southeast-1__reader: antipode-lambda-posts-sg
   mq:
     vpc_required: false
     # common
@@ -82,14 +81,14 @@ datastores:
     notification_queue: antipode-notifications
     stomp_port: 61614
     # writer eu
-    name__eu-central-1: antipode-lambda-notifications-eu-correct
-    arn__eu-central-1: arn:aws:mq:eu-central-1:851889773113:broker:antipode-lambda-notifications-eu-correct:b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270
-    host__eu-central-1: b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270-1.mq.eu-central-1.amazonaws.com
+    name__eu-central-1: mq-eu
+    arn__eu-central-1: arn:aws:mq:eu-central-1:641424397462:broker:mq-eu:b-8b026a92-1858-4a76-bc7a-7bfb25be209d
+    host__eu-central-1: b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com
     # reader us
-    name__us-east-1: antipode-lambda-notifications-eu
-    arn__us-east-1: arn:aws:mq:us-east-1:851889773113:broker:antipode-lambda-notifications-eu:b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83
-    host__us-east-1: b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83-1.mq.us-east-1.amazonaws.com
-    secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:851889773113:secret:antipode-mq-YcUFaZ
+    name__us-east-1: mq-us
+    arn__us-east-1: arn:aws:mq:us-east-1:641424397462:broker:mq-us:b-8847288a-a3fe-4869-b3f2-6e14b7cefed3
+    host__us-east-1: b-8847288a-a3fe-4869-b3f2-6e14b7cefed3-1.mq.us-east-1.amazonaws.com
+    secretmanager_arn__us-east-1: arn:aws:secretsmanager:us-east-1:641424397462:secret:antipode-mq-Bj2lHa
     # reader sg
     name__ap-southeast-1: antipode-lambda-sg
     arn__ap-southeast-1: arn:aws:mq:ap-southeast-1:641424397462:broker:antipode-lambda-sg:b-20f3cf89-7725-44b0-946b-19e84c03b81e
@@ -97,21 +96,21 @@ datastores:
     secretmanager_arn__ap-southeast-1: arn:aws:secretsmanager:ap-southeast-1:641424397462:secret:antipode-mq-Bj2lHa
   cache:
     vpc_required: true
+    rendezvous_prefix: rendezvous
     # common
     port: 6379
-    rendezvous_prefix: rendezvous
     # writer eu
-    host__eu-central-1__writer: antipode-lambda-eu.gwkjt4.ng.0001.euc1.cache.amazonaws.com
+    host__eu-central-1__writer: antipode-lambda-eu.0sr6mv.ng.0001.euc1.cache.amazonaws.com
     # reader us
-    host__us-east-1__reader: antipode-lambda-us.7jax8t.ng.0001.use1.cache.amazonaws.com
+    host__us-east-1__reader: antipode-lambda-us.1hbm5s.ng.0001.use1.cache.amazonaws.com
     # reader sg
     host__ap-southeast-1__reader: antipode-lambda-sg.qynev5.ng.0001.apse1.cache.amazonaws.com
 
 sqs_eval:
   name: antipode-lambda-eval
   # reader us
-  url__us-east-1: https://sqs.us-east-1.amazonaws.com/851889773113/antipode-lambda-eval
-  arn__us-east-1: arn:aws:sqs:us-east-1:851889773113:antipode-lambda-eval
+  url__us-east-1: https://sqs.us-east-1.amazonaws.com/641424397462/antipode-lambda-eval
+  arn__us-east-1: arn:aws:sqs:us-east-1:641424397462:antipode-lambda-eval
   # reader sg
-  url__ap-southeast-1: https://sqs.ap-southeast-1.amazonaws.com/851889773113/antipode-lambda-eval
-  arn__ap-southeast-1: arn:aws:sqs:ap-southeast-1:851889773113:antipode-lambda-eval
+  url__ap-southeast-1: https://sqs.ap-southeast-1.amazonaws.com/641424397462/antipode-lambda-eval
+  arn__ap-southeast-1: arn:aws:sqs:ap-southeast-1:641424397462:antipode-lambda-eval

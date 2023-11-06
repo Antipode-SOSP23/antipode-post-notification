@@ -113,7 +113,7 @@ Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonR
     - For credentials you can use the following:
         - Master Username: `antipode`
         - Master Password: `antipode`
-    - Select a memory optimized machine (e.g. `db.r6g.large`). You can tick `Include previous generations` for older and cheaper instances.
+    - Select a memory optimized machine (e.g. `db.r6.large`). You can tick `Include previous generations` for older and cheaper instances.
     - Do not create Multi-AZ deployment
     - Choose the `Default VPC`. _Warning_: do not try to change the `antipode-mq` VPC to support RDS by adding more subnets -- use a different one.
     - Enable `Public access`
@@ -134,7 +134,7 @@ Now we setup the cluster per se ([reference](https://docs.aws.amazon.com/AmazonR
 5. In `Databases`, select the top level entry named `antipode-lambda-eu` with type `Regional cluster`. Click on Actions and `Add AWS region`. You will get to a `Add Region` panel where you can setup the new replica:
     - Global database identifier: `antipode-lambda`
     - Select secondary region, e.g. `US East (N. Virginia)` which would mean that
-    - Select the same model of machine selected in the writer zone (e.g. `db.r6g.large`)
+    - Select the same model of machine selected in the writer zone (e.g. `db.r6.large`)
     - Do not create Multi-AZ deployment
     - Choose the `Default VPC`.
     - Enable `Public access`
@@ -266,7 +266,8 @@ NOTE: we should also change the replication priority for each deployment (input 
     ref: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/amazon-mq-creating-configuring-network-of-brokers.html
     ```xml
     <networkConnectors>
-        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-e0430b47-61c9-445d-9f0e-a6dcfccd9a83-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+        <networkConnector duplex="true" name="ConnectorEuToUs" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
+        <networkConnector duplex="true" name="ConnectorEuToSg" uri="static:(ssl://b-6cfdfde0-2f84-4723-94bd-cc9ada66c2a9-1.mq.us-east-1.amazonaws.com:61617)" userName="antipode"/>
     </networkConnectors>
     ```
 
@@ -281,7 +282,7 @@ NOTE: we should also change the replication priority for each deployment (input 
 
     - Double check with a producer
     ```
-    activemq producer --brokerUrl "ssl://b-b8556fe8-8f43-4c9b-85fe-33c58fbc2270-1.mq.eu-central-1.amazonaws.com:61617" \
+    activemq producer --brokerUrl "ssl://b-8b026a92-1858-4a76-bc7a-7bfb25be209d-1.mq.eu-central-1.amazonaws.com:61617" \
                 --user antipode \
                 --password antipode1antipode \
                 --destination queue://antipode-notifications \
@@ -357,13 +358,6 @@ Change the combinations as needed and build the plot:
 In your new config file, provide the gather paths in `storage_overhead`. Change the combinations as needed and build the plot:
 ```zsh
 ./plot plots/configs/sample.yml --plots storage_overhead
-```
-
-#### Write Post Operation Duration Overhead
-
-In your new config file, provide the gather paths in `write_post_overhead`. Change the combinations as needed and build the plot:
-```zsh
-./plot plots/configs/sample.yml --plots write_post_overhead
 ```
 
 
