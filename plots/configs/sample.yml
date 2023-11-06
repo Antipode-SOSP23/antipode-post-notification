@@ -16,3 +16,9 @@ consistency_window:
   gather_paths:
     - 'cache-sns/eu-us__antipode__1000-20210913103954'
     - 'cache-sns/eu-us__1000-20210912134647'
+
+# rendezvous
+write_post_overhead:
+  gather_paths:
+    - 'cache-sns/eu-us__rendezvous__1000-20210913103954'
+    - 'cache-sns/eu-us__1000-20210912134647'

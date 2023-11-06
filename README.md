@@ -304,7 +304,7 @@ For a pair of post-storage and notification-storage backends, for instance mysql
 ```zsh
 ./antipode_lambda build --post-storage dynamo --notification-storage sns --writer eu --reader us
 ```
-To enable Antipode add `-ant` parameter, and to introduce artificial delay before publishing the notification add `--delay <time>` parameter.
+To enable Antipode or Rendezvous add `-ant` or `-rv` parameter, and to introduce artificial delay before publishing the notification add `--delay <time>` parameter.
 
 Then you run a the build with:
 ```zsh
@@ -358,6 +358,13 @@ Change the combinations as needed and build the plot:
 In your new config file, provide the gather paths in `storage_overhead`. Change the combinations as needed and build the plot:
 ```zsh
 ./plot plots/configs/sample.yml --plots storage_overhead
+```
+
+#### Write Post Overhead (rendezvous)
+
+In your new config file, provide the gather paths in `storage_overhead`. Change the combinations as needed and build the plot:
+```zsh
+./plot plots/configs/sample.yml --plots write_post_overhead
 ```
 
 
