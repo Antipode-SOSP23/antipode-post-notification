@@ -80,13 +80,13 @@ def lambda_handler(event, context):
   if RENDEZVOUS:
     rendezvous_reader_start_ts = datetime.utcnow().timestamp()
     rid = event['rid']
-    rv_zone = rendezvous.parse_async_zone(event['rv_zone'])[0]
+    rv_acsl = rendezvous.parse_acsl(event['rv_acsl'])[0]
 
     with grpc.insecure_channel(_rendezvous_address('reader')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         # set timeout to 300 seconds as a sanity check for the replication delay of S3
-        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), async_zone=rv_zone, timeout=300)
+        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), acsl=rv_acsl, timeout=300)
         response = stub.WaitRequest(request)
         rendezvous_reader_end_ts = datetime.utcnow().timestamp()
 

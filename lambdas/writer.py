@@ -52,18 +52,18 @@ def lambda_handler(event, context):
   if RENDEZVOUS:
     rendezvous_writer_start_ts = datetime.utcnow().timestamp()
     rid = context.aws_request_id
-    zones = rendezvous.next_async_zones()
+    acsls = rendezvous.next_acsls()
 
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         regions = [_region('writer'), _region('reader')]
-        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', async_zone=zones[0], monitor=True)
+        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', acsl=acsls[0], monitor=True)
         response = stub.RegisterBranch(request)
         rendezvous_writer_end_ts = datetime.utcnow().timestamp()
         bid = response.bid
         event['rid'] = rid
-        event['rv_zone'] = rendezvous.compose_async_zone(num=1)
+        event['rv_acsl'] = rendezvous.compose_acsl(num=1)
         # eval
         event['rendezvous_call_writer_spent_ms'] = int((rendezvous_writer_end_ts - rendezvous_writer_start_ts) * 1000)
 

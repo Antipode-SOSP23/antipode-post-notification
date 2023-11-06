@@ -66,11 +66,12 @@ def parse_event(event):
         'post_written_at': float(dynamo_event['dynamodb']['NewImage']['post_written_at']['S']),
         'notification_written_at': float(dynamo_event['dynamodb']['NewImage']['notification_written_at']['S']),
       }
+      event['context'] = dynamo_event['dynamodb']['NewImage']['context']['S']
       if RENDEZVOUS:
         event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
+        event['rv_acsl'] = dynamo_event['dynamodb']['NewImage']['rv_acsl']['S']
         # for evaluation
         event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
-      event['context'] = dynamo_event['dynamodb']['NewImage']['context']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:

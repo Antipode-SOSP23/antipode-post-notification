@@ -1,20 +1,20 @@
 DELIMITED_BID_PREFIX = '_'
 DELIMITER_COMPOSED_BID = ":"
-DELIMITER_COMPOSED_ZONE = "/"
-DELIMITER_SUB_ZONES = ":"
+DELIMITER_COMPOSED_ACSL = "/"
+DELIMITER_ACSLS = ":"
 
 def compute_bid(service_prefix, rid, index):
   return service_prefix + DELIMITED_BID_PREFIX + str(index) + DELIMITER_COMPOSED_BID + rid;
 
-def next_async_zones(async_zone = "", num = 1):
+def next_acsls(acsl = "", num = 1):
   r = []
   for i in range(num):
-    r.append(async_zone + DELIMITER_SUB_ZONES + str(i))
+    r.append(acsl + DELIMITER_ACSLS + str(i))
   return r
 
-def compose_async_zone(async_zone_id = "", num = 1):
-  return async_zone_id + DELIMITER_COMPOSED_ZONE
+def compose_acsl(acsl_id = "", num = 1):
+  return acsl_id + DELIMITER_COMPOSED_ACSL
 
-# returns <async_zone_id>, <num_sub_async_zones>
-def parse_async_zone(async_zone):
-  return async_zone.split(DELIMITER_COMPOSED_ZONE, 1)
+# returns <acsl_id>, <num_sub_acsls>
+def parse_acsl(acsl):
+  return acsl.split(DELIMITER_COMPOSED_ACSL, 1)
