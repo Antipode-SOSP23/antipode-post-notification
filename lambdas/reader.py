@@ -86,8 +86,8 @@ def lambda_handler(event, context):
       stub = pb_grpc.ClientServiceStub(channel)
       try:
         # set timeout to 300 seconds as a sanity check for the replication delay of S3
-        request = pb.WaitRequestMessage(rid=rid, service='post-storage', region=_region('reader'), acsl=rv_acsl, timeout=300)
-        response = stub.WaitRequest(request)
+        request = pb.WaitMessage(rid=rid, service='post-storage', region=_region('reader'), acsl=rv_acsl, timeout=300)
+        response = stub.Wait(request)
         rendezvous_reader_end_ts = datetime.utcnow().timestamp()
 
         if response.prevented_inconsistency == 1:

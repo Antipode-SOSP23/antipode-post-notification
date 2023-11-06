@@ -71,7 +71,7 @@ def lambda_handler(event, context):
         print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
         raise e
   else:
-    # dummy values (on avg rendezvous spends 300)
+    # dummy value (on avg rendezvous spends 300)
     event['rendezvous_call_writer_spent_ms'] = 300
 
   #------

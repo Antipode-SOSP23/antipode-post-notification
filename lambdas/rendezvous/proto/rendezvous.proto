@@ -7,7 +7,7 @@ service ClientService {
   rpc RegisterBranch(RegisterBranchMessage) returns (RegisterBranchResponse);
   rpc RegisterBranches(RegisterBranchesMessage) returns (RegisterBranchesResponse);
   rpc CloseBranch(CloseBranchMessage) returns (Empty);
-  rpc WaitRequest(WaitRequestMessage) returns (WaitRequestResponse);
+  rpc Wait(WaitMessage) returns (WaitResponse);
   rpc CheckStatus(CheckStatusMessage) returns (CheckStatusResponse);
   rpc FetchDependencies(FetchDependenciesMessage) returns (FetchDependenciesResponse);
 }
@@ -71,11 +71,10 @@ message DatastoreBranching {
 message CloseBranchMessage {
   string bid = 1;
   string region = 2;
-  repeated string visible_bids = 3;
 }
 
 /* Wait */
-message WaitRequestMessage {
+message WaitMessage {
   string rid = 1;
   string service = 2;
   repeated string services = 3;
@@ -86,7 +85,7 @@ message WaitRequestMessage {
   string current_service = 8;
   string acsl = 9;
 }
-message WaitRequestResponse {
+message WaitResponse {
   bool prevented_inconsistency = 1;
   bool timed_out = 2;
 }
