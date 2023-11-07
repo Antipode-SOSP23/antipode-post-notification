@@ -36,7 +36,7 @@ def stats():
   r = conn.execute_command('MEMORY STATS')
   stats['dataset.bytes'] = int(r['dataset.bytes'])
 
-  # gather average memory (currently does not work for rendezvous)
+  # gather average memory (avg is currently not working for rendezvous)
   stats['dataset.avg_bytes'] = []
   for k in conn.keys():
     r = conn.execute_command(f"MEMORY USAGE {k}")

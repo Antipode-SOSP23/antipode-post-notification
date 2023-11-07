@@ -888,7 +888,6 @@ def gather(args):
             'post_read_at': float(item['post_read_at']),
             'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
-            'post_written_at': int(item['post_written_at']),
             'write_post_spent_ms': int((item['post_written_at']- item['writer_start_at']) * 1000),
             'notification_size_bytes': int(item['notification_size_bytes']),
             # 'post_written_at': int(item['post_written_at']),

@@ -52,7 +52,7 @@ def lambda_handler(event, context):
   if RENDEZVOUS:
     rendezvous_writer_start_ts = datetime.utcnow().timestamp()
     rid = context.aws_request_id
-    acsls = rendezvous.next_acsls()
+    acsls = rendezvous.child_acsls()
 
     with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
       stub = pb_grpc.ClientServiceStub(channel)

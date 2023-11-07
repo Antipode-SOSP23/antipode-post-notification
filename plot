@@ -365,7 +365,7 @@ def plot__prevented_inconsistencies(config):
   pp(df)
 
 #--------------
-# CONSTANTS#
+# CONSTANTS
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 PLOTS_PATH = ROOT_PATH / 'plots'

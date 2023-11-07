@@ -60,13 +60,6 @@ message RegisterBranchesResponse {
   repeated string bids = 2;
 }
 
-/* Register Branches - SERVERLESS VERSION */
-message DatastoreBranching {
-  string datastore = 1;
-  string tag = 2;
-  repeated string regions = 3;
-}
-
 /* Close Branch */
 message CloseBranchMessage {
   string bid = 1;

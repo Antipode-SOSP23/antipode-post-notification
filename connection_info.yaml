@@ -1,6 +1,6 @@
 aws_credentials_profile: default
-iam_cloudformation_admin_role_arn: arn:aws:iam::851889773113:role/antipode-cloudformation-admin
-iam_lambda_admin_role_arn: arn:aws:iam::851889773113:role/antipode-lambda-admin
+iam_cloudformation_admin_role_arn: arn:aws:iam::641424397462:role/antipode-cloudformation-admin
+iam_lambda_admin_role_arn: arn:aws:iam::641424397462:role/antipode-lambda-admin
 
 lambda:
   network:

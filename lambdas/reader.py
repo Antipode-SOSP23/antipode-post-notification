@@ -60,7 +60,6 @@ def lambda_handler(event, context):
     'reader_received_at': received_at,
     'notification_to_reader_spent_ms': int((received_at - event['notification_written_at']) * 1000),
     'post_read_at': None,
-    'read_post_spent_ms': None,
     'consistent_read' : 0,
     'antipode_spent_ms': None,
     'rendezvous_call_writer_spent_ms':  None,
