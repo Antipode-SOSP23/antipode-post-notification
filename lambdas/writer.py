@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import time
 import importlib
+import grpc
 from context import Context
 
 #--------------
@@ -15,6 +16,7 @@ from context import Context
 POST_STORAGE = os.environ['POST_STORAGE']
 NOTIFICATION_STORAGE = os.environ['NOTIFICATION_STORAGE']
 ANTIPODE = bool(int(os.environ['ANTIPODE']))
+RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
 DELAY_MS = int(os.environ['DELAY_MS'])
 
 # dynamically load methods according to flags
@@ -22,8 +24,17 @@ write_notification = getattr(importlib.import_module(f"{NOTIFICATION_STORAGE}"),
 if ANTIPODE:
   write_post = getattr(importlib.import_module(f"antipode_{POST_STORAGE}"), 'write_post')
   import antipode_core # import after importing module due to wait_registry
+elif RENDEZVOUS:
+  write_post = getattr(importlib.import_module(f"rendezvous_{POST_STORAGE}"), 'write_post')
+  import rendezvous, rendezvous_pb2 as pb, rendezvous_pb2_grpc as pb_grpc
 else:
   write_post = getattr(importlib.import_module(f"{POST_STORAGE}"), 'write_post')
+
+def _region(role):
+  return os.environ[f"{role.upper()}_REGION"]
+
+def _rendezvous_address(role):
+  return os.environ[f"RENDEZVOUS_{_region(role).replace('-','_').upper()}"]
 
 def lambda_handler(event, context):
   # this is used in cases where Lambdas are inside a VPC and we cannot clean outside of it
@@ -36,6 +47,32 @@ def lambda_handler(event, context):
     # dynamically call stats
     event['stats'] = getattr(importlib.import_module(f"{POST_STORAGE}"), 'stats')()
     return { 'statusCode': 200, 'body': event }
+  
+  # rendezvous eval
+  if RENDEZVOUS:
+    rendezvous_writer_start_ts = datetime.utcnow().timestamp()
+    rid = context.aws_request_id
+    acsls = rendezvous.child_acsls()
+
+    with grpc.insecure_channel(_rendezvous_address('writer')) as channel:
+      stub = pb_grpc.ClientServiceStub(channel)
+      try:
+        regions = [_region('writer'), _region('reader')]
+        request = pb.RegisterBranchMessage(rid=rid, regions=regions, service='post-storage', acsl=acsls[0], monitor=True)
+        response = stub.RegisterBranch(request)
+        rendezvous_writer_end_ts = datetime.utcnow().timestamp()
+        bid = response.bid
+        event['rid'] = rid
+        event['rv_acsl'] = rendezvous.compose_acsl(num=1)
+        # eval
+        event['rendezvous_call_writer_spent_ms'] = int((rendezvous_writer_end_ts - rendezvous_writer_start_ts) * 1000)
+
+      except grpc.RpcError as e:
+        print(f"[ERROR] Rendezvous exception registering request request/branches: {e.details()}")
+        raise e
+  else:
+    # dummy value (on avg rendezvous spends 300)
+    event['rendezvous_call_writer_spent_ms'] = 300
 
   #------
 
@@ -44,10 +81,11 @@ def lambda_handler(event, context):
 
   # mark timestamp of start of request processing - for visibility latency
   event['writer_start_at'] = datetime.utcnow().timestamp()
-
   if ANTIPODE:
     wid = write_post(k=event['key'], c=context)
     antipode_core.append_operation(context, 'post-storage', wid)
+  elif RENDEZVOUS:
+    write_post(k=event['key'], m=bid)
   else:
     write_post(k=event['key'])
 

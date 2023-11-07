@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package rendezvous;
+
+service ClientService {
+  rpc RegisterRequest(RegisterRequestMessage) returns (RegisterRequestResponse);
+  rpc RegisterBranch(RegisterBranchMessage) returns (RegisterBranchResponse);
+  rpc RegisterBranches(RegisterBranchesMessage) returns (RegisterBranchesResponse);
+  rpc CloseBranch(CloseBranchMessage) returns (Empty);
+  rpc Wait(WaitMessage) returns (WaitResponse);
+  rpc CheckStatus(CheckStatusMessage) returns (CheckStatusResponse);
+  rpc FetchDependencies(FetchDependenciesMessage) returns (FetchDependenciesResponse);
+}
+
+/* Helpers */
+enum RequestStatus {
+  CLOSED = 0;
+  OPENED = 1;
+  UNKNOWN = 2;
+}
+message Empty {
+
+}
+
+/* Register Request */
+message RegisterRequestMessage {
+  string rid = 1;
+}
+message RegisterRequestResponse {
+  string rid = 1;
+}
+
+/* Registers Branch */
+message RegisterBranchMessage {
+  string rid = 1;
+  string bid = 2;
+  string service = 3;
+  string tag = 4;
+  repeated string regions = 5;
+  bool monitor = 6;
+  string acsl = 7;
+  string current_service = 8;
+}
+message RegisterBranchResponse {
+  string rid = 1;
+  string bid = 2;
+}
+
+/* Registers Branches */
+message RegisterBranchesMessage {
+  string rid = 1;
+  repeated string services = 2;
+  repeated string tags = 3;
+  string region = 4;
+  string acsl = 5;
+  string current_service = 6;
+}
+message RegisterBranchesResponse {
+  string rid = 1;
+  repeated string bids = 2;
+}
+
+/* Close Branch */
+message CloseBranchMessage {
+  string bid = 1;
+  string region = 2;
+}
+
+/* Wait */
+message WaitMessage {
+  string rid = 1;
+  string service = 2;
+  repeated string services = 3;
+  string region = 4;
+  string tag = 5;
+  int32 timeout = 6;
+  bool wait_deps = 7;
+  string current_service = 8;
+  string acsl = 9;
+}
+message WaitResponse {
+  bool prevented_inconsistency = 1;
+  bool timed_out = 2;
+}
+
+/* Check Status */
+message CheckStatusMessage {
+  string rid = 1;
+  string service = 2;
+  string region = 3;
+  bool detailed = 4;
+  string acsl = 5;
+}
+
+message CheckStatusResponse {
+  RequestStatus status = 1;
+  map<string, RequestStatus> tagged = 2;
+  map<string, RequestStatus> regions = 3;
+}
+
+/* Check Dependencies */
+message FetchDependenciesMessage {
+  string rid = 1;
+  string service = 2;
+  string acsl = 3;
+}
+
+message FetchDependenciesResponse {
+  repeated string deps = 1;
+  repeated string indirect_deps = 2;
+}

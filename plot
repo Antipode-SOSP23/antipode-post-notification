@@ -31,6 +31,88 @@ def flatten(l):
 #--------------
 # PLOTS
 #--------------
+def plot__write_post_overhead(config):  
+  # Apply the default theme
+  sns.set_theme(style='ticks')
+  plt.rcParams["figure.figsize"] = [6, 2.5]
+  plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
+
+  # <Post Storage>-SNS --> force paths that only have SNS
+  data = {}
+  for gather_path in config['gather_paths']:
+    traces_filepath = GATHER_PATH / gather_path / 'traces.csv'
+    traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
+
+    # skip paths not from sns
+    if traces_tags['NOTIFICATION_STORAGE'] != 'sns':
+      print(f"[WARN] Skipping experiment with notification storage not SNS")
+      continue
+
+    post_storage = traces_tags['POST_STORAGE']
+
+    # check if combination already in the data folder
+    if post_storage not in data:
+      data[post_storage] = {
+        'Post Storage': STORAGE_PRETTY_NAMES[post_storage],
+        # KEEP THIS ORDER -- otherwise plot will get wrong order as well
+        'Original': [],
+        'Antipode': [], # init Antipode and Original with array due to multiple rounds
+        'Rendezvous': [], # init Rendezvous and Original with array due to multiple rounds
+      }
+    
+    # find out if antipode is enabled
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'Antipode'
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'Rendezvous'
+    else:
+      run_type = 'Original'
+
+    # set app type to either Antipode or Rendezvous
+    if run_type != 'Original':
+      app_type = run_type
+
+    data[post_storage][run_type].append(pd.read_csv(traces_filepath,sep=';',index_col=0))
+
+  for _,e in data.items():
+    e[app_type] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e[app_type] ]), 50))
+    e['Original'] = round(np.percentile(flatten([ df['write_post_spent_ms'] for df in e['Original'] ]), 50))
+
+  data = list(data.values())
+
+  # for each Original / Rendezvous pair we take the Original out of rendezvous so
+  # stacked bars are presented correctly
+  for d in data:
+    d[app_type] = max(0, d[app_type] - d['Original'])
+
+
+  df = pd.DataFrame.from_records(data).set_index('Post Storage')
+  ax = df.plot(kind='bar', stacked=True, logy=False)
+  ax.set_ylim(1, 1450)
+  plt.xticks(rotation = 0)
+
+  ax.set_ylabel('Write Post (ms)')
+  ax.set_xlabel('')
+
+  # plot baseline bar
+  ax.bar_label(ax.containers[0], label_type='center', fontsize=9, weight='bold', color='white')
+  # plot overhead bar
+  labels = [ f"+ {round(e)}" for e in ax.containers[1].datavalues ]
+  ax.bar_label(ax.containers[1], labels=labels, label_type='edge', fontsize=9, weight='bold', color='black')
+    
+
+  # reverse order of legend and force position to upper left
+  handles, labels = ax.get_legend_handles_labels()
+  ax.legend(handles[::-1], labels[::-1], loc='upper left')
+
+  # save with a unique timestamp
+  plt.tight_layout()
+  plot_filename = f"write_post_overhead__{datetime.now().strftime('%Y%m%d%H%M')}"
+  plt.savefig(PLOTS_PATH / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
+  print(f"[INFO] Saved plot '{plot_filename}'")
+
 def plot__consistency_window(config):
   # Apply the default theme
   sns.set_theme(style='ticks')
@@ -62,15 +144,26 @@ def plot__consistency_window(config):
         # KEEP THIS ORDER -- otherwise plot will get wrong order as well
         'Original': [],
         'Antipode': [], # init Antipode and Original with array due to multiple rounds
+        'Rendezvous': [],
       }
 
     # find out if antipode is enabled
-    run_type = 'Antipode' if traces_tags['ANTIPODE_ENABLED'] else 'Original'
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'Antipode'
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'Rendezvous'
+    else:
+      run_type = 'Original'
+      
+    # set app type to either Antipode or Rendezvous
+    if run_type != 'Original':
+      app_type = run_type
 
     data[post_storage][run_type].append(pd.read_csv(traces_filepath,sep=';',index_col=0))
 
   for _,e in data.items():
-    e['Antipode'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Antipode'] ]), 50))
+    e[app_type] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e[app_type] ]), 50))
     e['Original'] = round(np.percentile(flatten([ df['writer_visibility_latency_ms'] for df in e['Original'] ]), 50))
 
   data = list(data.values())
@@ -78,9 +171,10 @@ def plot__consistency_window(config):
   # for each Original / Antipode pair we take the Original out of antipode so
   # stacked bars are presented correctly
   for d in data:
-    d['Antipode'] = max(0, d['Antipode'] - d['Original'])
+    d[app_type] = max(0, d[app_type] - d['Original'])
 
   df = pd.DataFrame.from_records(data).set_index('Post Storage')
+  pp(df)
   log = True
   if log:
     ax = df.plot(kind='bar', stacked=True, logy=True)
@@ -180,11 +274,20 @@ def plot__delay_vs_per_inconsistencies(config):
 
 def plot__storage_overhead(config):
   data = {}
+  app_type = None
   for gather_path in config['gather_paths']:
     traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
 
     # find out if antipode is enabled
-    run_type = 'antipode' if traces_tags['ANTIPODE_ENABLED'] else 'baseline'
+    if traces_tags['ANTIPODE_ENABLED']:
+      run_type = 'app'
+      app_type = 'antipode'
+    # prevent any errors if rendezvous flag does not exist in old eval
+    elif 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
+      run_type = 'app'
+      app_type = 'rendezvous'
+    else:
+      run_type = 'baseline'
 
     post_storage = traces_tags['POST_STORAGE']
     notification_storage = traces_tags['NOTIFICATION_STORAGE']
@@ -195,9 +298,9 @@ def plot__storage_overhead(config):
         'storage': post_storage,
         # init Antipode and Original with array due to multiple rounds
         'baseline_total': [],
-        'antipode_total': [],
+        'app_total': [],
         'baseline_avg': [],
-        'antipode_avg': [],
+        'app_avg': [],
       }
     data[post_storage][f"{run_type}_total"].append(traces_tags['TOTAL_POST_STORAGE_SIZE_BYTES'])
     data[post_storage][f"{run_type}_avg"].append(traces_tags['AVG_POST_STORAGE_SIZE_BYTES'])
@@ -208,9 +311,9 @@ def plot__storage_overhead(config):
         'storage': notification_storage,
         # init Antipode and Original with array due to multiple rounds
         'baseline_total': [],
-        'antipode_total': [],
+        'app_total': [],
         'baseline_avg': [],
-        'antipode_avg': [],
+        'app_avg': [],
       }
     data[notification_storage][f"{run_type}_total"].append(traces_tags['TOTAL_NOTIFICATION_SIZE_BYTES'])
     data[notification_storage][f"{run_type}_avg"].append(traces_tags['AVG_NOTIFICATION_SIZE_BYTES'])
@@ -218,16 +321,47 @@ def plot__storage_overhead(config):
   # pick median from all storage overheads and do the overhead percentage
   for _,e in data.items():
     e['baseline_total'] = round(np.percentile(e['baseline_total'], 50))
-    e['antipode_total'] = round(np.percentile(e['antipode_total'], 50))
-    e['overhead_total'] = e['antipode_total'] - e['baseline_total']
+    e['app_total'] = round(np.percentile(e['app_total'], 50))
+    e['overhead_total'] = e['app_total'] - e['baseline_total']
     e['por_overhead_total'] = (e['overhead_total'] / e['baseline_total'])*100
     #
     e['baseline_avg'] = round(np.percentile(e['baseline_avg'], 50))
-    e['antipode_avg'] = round(np.percentile(e['antipode_avg'], 50))
-    e['overhead_avg'] = e['antipode_avg'] - e['baseline_avg']
+    e['app_avg'] = round(np.percentile(e['app_avg'], 50))
+    e['overhead_avg'] = e['app_avg'] - e['baseline_avg']
     e['por_overhead_avg'] = (e['overhead_avg'] / e['baseline_avg'])*100
 
   df = pd.DataFrame.from_records(list(data.values())).set_index('storage')
+  if app_type == 'antipode':
+    df.columns = df.columns.str.replace('app', 'antipode')
+  else:
+    df.columns = df.columns.str.replace('app', 'rendezvous')  
+  pp(df)
+
+def plot__prevented_inconsistencies(config):
+  data = {
+    'rendezvous': {},
+    'baseline': {}
+  }
+
+  for gather_path in config['gather_paths']:
+    traces_tags = _load_yaml(GATHER_PATH / gather_path / 'tags.yml')
+
+    # prevent any errors if rendezvous flag does not exist in old eval
+    if 'RENDEZVOUS_ENABLED' in traces_tags and traces_tags['RENDEZVOUS_ENABLED']:
+      post_storage = traces_tags['POST_STORAGE']
+      data['rendezvous'][post_storage] = traces_tags['%_PREVENTED_INCONSISTENCIES']
+    else:
+      post_storage = traces_tags['POST_STORAGE']
+      data['baseline'][post_storage] = traces_tags['%_INCONSISTENCIES']
+
+  # rendezvous
+  df = pd.DataFrame(list(data['rendezvous'].items()), columns=['storage', '% prevented inconsistencies'])
+  print("> Rendezvous:")
+  pp(df)
+
+  # baseline
+  df = pd.DataFrame(list(data['baseline'].items()), columns=['storage', '% inconsistencies'])
+  print("> Baseline:")
   pp(df)
 
 #--------------

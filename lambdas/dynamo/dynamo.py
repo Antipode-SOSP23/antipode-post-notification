@@ -1,9 +1,11 @@
 import boto3
 import os
 from datetime import datetime
+import time
 
 DYNAMO_NOTIFICATIONS_TABLE_NAME = os.environ['DYNAMO_NOTIFICATIONS_TABLE_NAME']
 DYNAMO_POST_TABLE_NAME = os.environ['DYNAMO_POST_TABLE_NAME']
+RENDEZVOUS = bool(int(os.environ['RENDEZVOUS']))
 
 def _conn(role):
   region = os.environ[f"{role.upper()}_REGION"]
@@ -39,6 +41,12 @@ def write_notification(event):
     'notification_written_at': str(event['notification_written_at']),
   }
   item['context']= event['context']
+
+  # rendezvous eval
+  item['rendezvous_call_writer_spent_ms'] = str(event['rendezvous_call_writer_spent_ms'])
+  if RENDEZVOUS:
+    item['rid'] = str(event['rid'])
+
   # write the built item
   notifications_table.put_item(Item=item)
 
@@ -59,6 +67,11 @@ def parse_event(event):
         'notification_written_at': float(dynamo_event['dynamodb']['NewImage']['notification_written_at']['S']),
       }
       event['context'] = dynamo_event['dynamodb']['NewImage']['context']['S']
+      if RENDEZVOUS:
+        event['rid'] = dynamo_event['dynamodb']['NewImage']['rid']['S']
+        event['rv_acsl'] = dynamo_event['dynamodb']['NewImage']['rv_acsl']['S']
+        # for evaluation
+        event['rendezvous_call_writer_spent_ms'] = dynamo_event['dynamodb']['NewImage']['rendezvous_call_writer_spent_ms']['S']
     elif dynamo_event['eventName'] == 'REMOVE':
       return 422, event
     else:

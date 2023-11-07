@@ -16,6 +16,7 @@ import time
 #--------------
 # HELPERS
 #--------------
+
 def _dict_reverse_lookup(d, v):
   return list(d.keys())[list(d.values()).index(v)]
 
@@ -167,6 +168,10 @@ def _build_service(role, args):
               WRITER_REGION: {{ writer_region }}
               READER_REGION: {{ reader_region }}
               ANTIPODE: {{ antipode_enabled }}
+              RENDEZVOUS: {{ rendezvous_enabled }}
+              RENDEZVOUS_EU_CENTRAL_1: {{ rendezvous_eu }}
+              RENDEZVOUS_US_EAST_1: {{ rendezvous_us }}
+              RENDEZVOUS_AP_SOUTHEAST_1: {{ rendezvous_ap }}
               DELAY_MS: {{ delay_ms }}
               #---
               {% for k,v in env_variables.items() %}{{ k }}: {{ v }}
@@ -182,6 +187,10 @@ def _build_service(role, args):
     'writer_region': args['writer'],
     'reader_region': args['reader'],
     'antipode_enabled': int(args['antipode']),
+    'rendezvous_enabled': int(args['rendezvous']),
+    'rendezvous_eu': CONNECTION_INFO['rendezvous']['eu-central-1'],
+    'rendezvous_us': CONNECTION_INFO['rendezvous']['us-east-1'],
+    'rendezvous_ap': CONNECTION_INFO['rendezvous']['ap-southeast-1'],
     'delay_ms': args['delay'],
     # vpc configurations if needed
     'vpc_required': app_args['vpc_required'],
@@ -220,6 +229,14 @@ def _build_service(role, args):
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / 'antipode_core.py', deploy_dir)
     shutil.copy(ROOT_PATH / 'lambdas' / 'antipode' / f"antipode_{args['post_storage']}.py", deploy_dir)
 
+  # copy rendezvous if its enabled
+  if args['rendezvous']:
+    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / f"rendezvous_{args['post_storage']}.py", deploy_dir)
+    shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'rendezvous.py', deploy_dir)
+    # copy auto-generated protobuf files 
+    for filename in ['rendezvous_pb2_grpc.py', 'rendezvous_pb2.py', 'rendezvous_pb2.pyi']:
+      shutil.copy(ROOT_PATH / 'lambdas' / 'rendezvous' / 'proto' / filename, deploy_dir)
+
   # figure out deploy params
   region = args[role]
   s3_bucket = CONNECTION_INFO['lambda']['s3_buckets'][region]
@@ -253,13 +270,31 @@ def _build_service(role, args):
 
   os.chdir(ROOT_PATH)
 
-#--------------
+def _compile_rendezvous_protos():
+    import subprocess
+    
+    proto_path = 'lambdas/rendezvous/proto'
+    command = f"""
+        python3 -m grpc_tools.protoc \
+        -I {proto_path} \
+        --python_out={proto_path} \
+        --pyi_out={proto_path} \
+        --grpc_python_out={proto_path} \
+        {proto_path}/rendezvous.proto \
+    """
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+    if result.returncode != 0:
+      print(f'[ERROR] Could not compile rendezvous protobuf files {result.stderr}')
+      exit(-1)
 
 def build(args):
   _force_docker()
 
   # save build variables for other commands
   _put_last('antipode_enabled', args['antipode'])
+  _put_last('rendezvous_enabled', args['rendezvous'])
+  _put_last('rendezvous_ncc', args['no_consistency_checks'])
   _put_last('delay', args['delay'])
   _put_last('post_storage', args['post_storage'])
   _put_last('notification_storage', args['notification_storage'])
@@ -271,6 +306,11 @@ def build(args):
     else:
       args[role] = REGIONS[args[role]]
       _put_last(f"{role}_region", args[role])
+
+  # compile rendezvous proto files
+  if args['rendezvous']:
+    print(f"[INFO] Compiling rendezvous protobuf files... ", flush=True)
+    _compile_rendezvous_protos()
 
   # trigger build for writer and reader
   print(f"[INFO] Building {args['post_storage']}-{args['notification_storage']} application... ", flush=True)
@@ -494,6 +534,20 @@ def clean__mysql():
     cursor.execute(sql)
     assert(cursor.fetchone()[0] == 0)
 
+    sql = f"""
+    CREATE TABLE `{MYSQL_CONN['rendezvous_table_name']}` (
+      k VARCHAR({NOTIFICATION_KEY_LEN}) NOT NULL,
+      b LONGBLOB NOT NULL,
+      rv_bid VARCHAR(255) NOT NULL,
+      PRIMARY KEY (k),
+      INDEX (rv_bid)
+    )"""
+    cursor.execute(sql)
+    mysql_conn.commit()
+    sql = f"SELECT COUNT(*) FROM `{MYSQL_CONN['rendezvous_table_name']}`"
+    cursor.execute(sql)
+    assert(cursor.fetchone()[0] == 0)
+
     # context 128bits random has around 40 chars
     # we also add a context for faster index
     sql = f"""
@@ -527,7 +581,9 @@ def clean__dynamo():
       DYNAMO_CONN['post_table_name'],
       DYNAMO_CONN['notifications_table_name'],
       DYNAMO_CONN['antipode_table'],
+      DYNAMO_CONN['rendezvous_table']
     ]
+
     for table_name in table_names:
       table = resource_dynamo.Table(table_name)
       # Only way to clean a table in DynamoDB is to go key by key
@@ -755,6 +811,8 @@ def gather(args):
   post_storage = _get_last('post_storage')
   notification_storage = _get_last('notification_storage')
   antipode_enabled = _get_last('antipode_enabled')
+  rendezvous_enabled = _get_last('rendezvous_enabled')
+  rendezvous_ncc = _get_last('rendezvous_ncc')
   num_requests = _get_last('requests')
   delay = _get_last('delay')
   latencies = _get_last('latencies')
@@ -830,11 +888,17 @@ def gather(args):
             'post_read_at': float(item['post_read_at']),
             'consistent_read': int(item['consistent_read']), # 0 - False, 1 - True
             'notification_to_reader_spent_ms': int(item['notification_to_reader_spent_ms']),
+            'write_post_spent_ms': int((item['post_written_at']- item['writer_start_at']) * 1000),
             'notification_size_bytes': int(item['notification_size_bytes']),
             # 'post_written_at': int(item['post_written_at']),
           }
           if antipode_enabled:
             e['antipode_spent_ms'] = int(item['antipode_spent_ms'])
+
+          if rendezvous_enabled:
+            e['rendezvous_call_writer_spent_ms'] = int(item['rendezvous_call_writer_spent_ms'])
+            e['rendezvous_call_reader_spent_ms'] = int(item['rendezvous_call_reader_spent_ms'])
+            e['rendezvous_prevented_inconsistency'] = int(item['rendezvous_prevented_inconsistency'])
 
           results[int(item['i'])] = e
           message.delete()
@@ -848,6 +912,11 @@ def gather(args):
     args['tag'] = f"{_dict_reverse_lookup(REGIONS, writer_region)}-{_dict_reverse_lookup(REGIONS, reader_region)}__{num_requests}__delay-{delay}ms"
     if antipode_enabled:
       args['tag'] = 'antipode__' + args['tag']
+    if rendezvous_enabled:
+      if rendezvous_ncc:
+        args['tag'] = 'rendezvous_ncc__' + args['tag']
+      else:
+        args['tag'] = 'rendezvous__' + args['tag']
 
   # now we compute date over the global results and tidy up dict for dataframe
   eval_values = results.values()
@@ -903,6 +972,8 @@ def gather(args):
     'POST_STORAGE': post_storage,
     'NOTIFICATION_STORAGE': notification_storage,
     'ANTIPODE_ENABLED': antipode_enabled,
+    'RENDEZVOUS_ENABLED': rendezvous_enabled,
+    'RENDEZVOUS_NCC': rendezvous_ncc,
     'DELAY': delay,
     'READER_REGION': reader_region,
     'WRITER_REGION': writer_region,
@@ -914,6 +985,9 @@ def gather(args):
     'TOTAL_POST_STORAGE_SIZE_BYTES': stats['total_post_storage_size_bytes'],
     'AVG_POST_STORAGE_SIZE_BYTES': stats['avg_post_storage_size_bytes'],
   }
+  if rendezvous_enabled:
+    eval_tags['%_PREVENTED_INCONSISTENCIES'] = len(df.query('rendezvous_prevented_inconsistency == 1')) / float(len(df))
+
   _dump_yaml(tags_path, eval_tags)
   print(f"[INFO] Save '{tags_path}'\n")
 
@@ -938,7 +1012,12 @@ def gather_stats__dynamo():
   # Hence, we used this calculator in an item with and without antipode
   # https://zaccharles.github.io/dynamodb-calculator/
   # and we got to these values
-  single_item_size = 350054 if _get_last('antipode_enabled') else 350012
+  if _get_last('antipode_enabled'):
+    single_item_size = 350054
+  elif _get_last('rendezvous_enabled'):
+    single_item_size = 350062
+  else:
+    single_item_size = 350012
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -946,9 +1025,14 @@ def gather_stats__dynamo():
 
 def gather_stats__s3():
   # S3 size is fixed and key does not change the object size
-  # (1000) from object
+  # (1000 KB) from object
   # (320) from Antipode's metadata
-  single_item_size = 1000000 + (320 if _get_last('antipode_enabled') else 0)
+  # (10) from Rendezvous's metadata
+  single_item_size = 1000000
+  if _get_last('antipode_enabled'):
+    single_item_size += 320
+  elif _get_last('rendezvous_enabled'):
+    single_item_size += 10
   return {
     'total_post_storage_size_bytes': single_item_size * _get_last('requests'),
     'avg_post_storage_size_bytes': single_item_size,
@@ -960,7 +1044,12 @@ def gather_stats__mysql():
 
   MYSQL_CONN = CONNECTION_INFO['datastores']['mysql']
   writer_region = _get_last('writer_region')
-  table_name = MYSQL_CONN['antipode_table_name'] if _get_last('antipode_enabled') else MYSQL_CONN['post_table_name']
+  if _get_last('antipode_enabled'):
+    table_name = MYSQL_CONN['antipode_table_name']
+  elif _get_last('rendezvous_enabled'):
+    table_name = MYSQL_CONN['rendezvous_table_name']
+  else:
+    table_name = MYSQL_CONN['post_table_name']
 
   mysql_conn = pymysql.connect(
       host=MYSQL_CONN[f"host__{writer_region}__writer"],
@@ -1073,6 +1162,8 @@ if __name__ == '__main__':
   build_parser.add_argument('-w', '--writer', required=True, choices=REGIONS.keys(), help="Build writer on the specified region")
   build_parser.add_argument('-r', '--reader', required=True, choices=REGIONS.keys(), help="Build reader on the specified region")
   build_parser.add_argument('-ant', '--antipode', action='store_true', help="Enables antipode on the lambdas")
+  build_parser.add_argument('-rv', '--rendezvous', action='store_true', help="Enables rendezvous on the lambdas")
+  build_parser.add_argument('-ncc', '--no-consistency-checks', action='store_true', help="Disables rendezvous consistency checks")
   build_parser.add_argument('-d', '--delay', type=int, default=0, help="Apply ms delay before writing notification")
 
   # run application
